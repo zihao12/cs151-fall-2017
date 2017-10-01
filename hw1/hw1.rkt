@@ -1,7 +1,7 @@
 #lang typed/racket
 (require typed/test-engine/racket-tests)
 (require "../include/cs151-core.rkt")
-(test)
+
 
 (: square (Real -> Real))
 ;;Helper function that calculats square of a number
@@ -24,7 +24,7 @@
 (define (f->c fah)
   (/(- fah 32) 9/5))
 (check-expect (f->c 50) 10 )
-(check-expect (c->f 32) 0 )
+(check-expect (f->c 32) 0 )
 ;; check-expect seems not to be working
 
 (: eval-quadratic (Real Real Real Real -> Real))
@@ -79,7 +79,7 @@
 ;;giving the y components of vecors resulting from the addition of two vectors
 (define (vector-add-y x1 y1 x2 y2)
   (+ y1 y2))
-(check-expect (vector-add-x 1 2 3 4) 6)
+(check-expect (vector-add-y 1 2 3 4) 6)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;Problem 4
@@ -113,3 +113,5 @@
   (* R (acos (/ R (+ h R)))))
 (check-expect (offing-ground-distance/meters  0 ) 0)
 (check-within (offing-ground-distance/meters  1e3 ) 112873.08605922057 1e-15)
+
+(test)
