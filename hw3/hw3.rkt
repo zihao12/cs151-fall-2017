@@ -109,23 +109,109 @@
                           (StringNode "xx" 'SEmpty 'SEmpty)
                           (StringNode "yy" 'SEmpty
                                       (StringNode "zzz" 'SEmpty 'SEmpty)))) "xyyzzz")
+;;Problem 3
+(define-type 3Tree (U 3Node '3Empty))
 
+(define-struct 3Node
+  ([root : Integer]
+   [lsub : 3Tree]
+   [msub : 3Tree]
+   [rsub : 3Tree]))
 
-                                   
+(define T (3Node 1
+       (3Node 2
+              (3Node 3 '3Empty '3Empty '3Empty)
+              (3Node 4 '3Empty '3Empty '3Empty)
+              '3Empty)
+       (3Node 8
+              '3Empty
+              (3Node 7
+                     (3Node 5 '3Empty '3Empty '3Empty)
+                     '3Empty
+                     (3Node 6 '3Empty '3Empty '3Empty))
+              '3Empty)
+       (3Node 9
+              '3Empty
+              '3Empty
+              (3Node 0 '3Empty '3Empty '3Empty))))
+
+(: num-nodes : 3Tree -> Integer)
+;;count the number of nodes in a tree
+(define (num-nodes t)
+  (match t
+    ['3Empty 0]
+    [(3Node _ ls ms rs)
+     (+ 1
+        (num-nodes ls)
+        (num-nodes ms)
+        (num-nodes rs))]))
+(check-expect (num-nodes T) 10)
        
-                             
+(: sum-nodes : 3Tree -> Integer)
+;;add the values of all the nodes in the given tree
+(define (sum-nodes t)
+  (match t
+    ['3Empty 0]
+    [(3Node r ls ms rs)
+     (+ r
+        (sum-nodes ls)
+        (sum-nodes ms)
+        (sum-nodes rs))]))
+(check-expect (sum-nodes T) 45)
+ 
+(: height : 3Tree -> Integer)
+;;return the number of generations in a tree
+(define (height t)
+  (match t
+    ['3Empty 0]
+    [ (3Node _ ls ms rs)
+      (+ 1
+         (max (height ls) (height ms) (height rs)))]))
+(check-expect (height T) 4)
 
+(: contains? : 3Tree Integer -> Boolean)
+;; see if the given tree contains a given integer
+(define (contains? t n)
+  (match t
+    ['3Empty #f]
+    [(3Node r ls ms rs)
+     (or (= r n)
+         (contains? ls n)
+         (contains? ms n)
+         (contains? rs n))]))
+(check-expect (contains? T 4) #t)
+(check-expect (contains? T 11) #f)
 
+(: leftmost : 3Tree -> (U Integer 'None))
+;;search for the leftmost element in a given tree
+(define (leftmost t)
+  (match t
+    ['3Empty 'None]
+    [(3Node r ls ms rs)
+       (match ls
+         ['3Empty r]
+         [(3Node r ls ms rs)
+          (leftmost ls)])]))
+(check-expect (leftmost T) 3)
 
-
-
-
-
-
-
-
-
-
+(: farthest-item : 3Tree -> (U Integer 'None))
+;; find the element farthest away from the root
+(define (farthest-item t)
+  (match t
+    ['3Empty 'None]
+    [(3Node r ls ms rs)
+     (cond
+       [(and (= (sub1 (height t)) (height ls))
+             (> (height ls) 0))
+        (farthest-item ls)]
+       [(and (= (sub1 (height t)) (height ms))
+             (> (height ms) 0))
+        (farthest-item ls)]
+       [(and (= (sub1 (height t)) (height ls))
+             (> (height rs) 0))
+        (farthest-item rs)]
+       [else r])]))
+(check-expect (farthest-item T) 5)
 
 
 
