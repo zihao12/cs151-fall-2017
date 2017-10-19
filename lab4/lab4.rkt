@@ -183,6 +183,7 @@
 (check-error (at-or-above 1000 Ledger5) "Transaction amnount must be positive")
 (check-expect (at-or-above 20000 Ledger1) 'LNil)
 
+       
 (: largest : Ledger -> Ledger)
 ;; compute the ledger of zero or more of the transactions
 ;; whose transaction amount is equal to the largest transaction
@@ -191,13 +192,11 @@
   (match l
     ['LNil 'LNil]
     [(LCons first sub)
-     (match (at-or-above (Transaction-amount first) sub)
+     (match (largest sub)
        ['LNil (LCons first 'LNil)]
-       [ (LCons first2 sub2)
-         (match* (first first2)
-           [((Transaction _ _ a1) (Transaction _ _ a2))
-            (if (= a1 a2) (LCons first (largest sub))
-                (largest sub))])])]))
+       [(LCons first1 sub1)
+          (if (>= (Transaction-amount first) (Transaction-amount first1))
+              (LCons first (largest sub)) (largest sub))])]))
 (check-expect (largest Ledger7) Ledger8)
     
 
