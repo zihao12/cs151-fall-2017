@@ -88,15 +88,19 @@
    [left  : StringTree]
    [right : StringTree]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;I noticed I have misunderstood the meaning of mapping. I have corrected them in this verison.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (: mirror (IntTree -> IntTree))
 ;;creates a mirror image of the given binary tree
 (define (mirror t)
   (match t
     ['IEmpty 'IEmpty]
     [(IntNode v l r)
-    (IntNode v r l)]))
-(check-expect (mirror (IntNode 1 (IntNode 2 'IEmpty 'IEmpty) (IntNode 3 'IEmpty 'IEmpty)))
-              (IntNode 1 (IntNode 3 'IEmpty 'IEmpty) (IntNode 2 'IEmpty 'IEmpty)))
+    (IntNode v (mirror r) (mirror l))]))
+(check-expect (mirror (IntNode 1 (IntNode 2 'IEmpty 'IEmpty) (IntNode 3 'IEmpty (IntNode 4 'IEmpty 'IEmpty))))
+              (IntNode 1 (IntNode 3 (IntNode 4 'IEmpty 'IEmpty) 'IEmpty) (IntNode 2 'IEmpty 'IEmpty)))
 
 (: int-tree->string-tree (IntTree -> StringTree))
 ;; turn a IntTree into a StringTree
