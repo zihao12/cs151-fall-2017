@@ -1,0 +1,267 @@
+#lang typed/racket
+(require "../include/cs151-image.rkt")
+(require "../include/cs151-core.rkt")
+(require typed/test-engine/racket-tests)
+
+(define-struct Date
+  ([m : Integer] ;; 1 for Jan, 2 for Feb, ..., 12 for Dec
+   [d : Integer]
+   [y : Integer]))
+
+(define-type Day
+  (U 'Sun 'Mon 'Tue 'Wed 'Thu 'Fri 'Sat))
+
+(: leap? (Integer -> Boolean))
+;;decide if a year is a leap year
+(define (leap? n)
+  ( cond
+     [(< n 0) (error "leap? :integer input should not be negative ")]
+     [(or
+       (and (= (remainder n 4) 0 )
+            (not (= (remainder n 100) 0)))
+       (= (remainder n 400) 0))
+      #t]
+     [else #f]))
+(check-expect (leap? 2008) #t)
+(check-expect (leap? 2100) #f)
+(check-expect (leap? 1997) #f)
+(check-error (leap? -3) "leap? :integer input should not be negative ")
+
+(: large_month? (Integer -> Boolean))
+;; see if a month is a large month
+( define (large_month? m)
+   (cond
+     [(< m 0) (error "large_month?: invalid input")]
+     [(or (= m 1) (= m 3) (= m 5) (= m 7) (= m 8) (= m 10) (= m 12)) #t]
+     [else #f]))
+(check-expect (large_month? 4) #f)
+(check-expect (large_month? 3) #t)
+(check-error (large_month? -2)  "large_month?: invalid input")
+
+(: small_month? (Integer -> Boolean))
+;; see if a month is a small month
+( define (small_month? m)
+   (cond
+     [(< m 0) (error "small_month?: invalid input")]
+     [(or (= m 4) (= m 6) (= m 9) (= m 11) ) #t]
+     [else #f]))
+(check-expect (small_month? 4) #t)
+(check-expect (small_month? 3) #f)
+(check-error (small_month? -2)  "small_month?: invalid input")
+
+(: smart-construct-date (Integer Integer Integer -> Date))
+;; return a date if it is correct; report an error if input is not a date
+;; GRADER: Purpose comments should contain enough info for someone else to
+;; be able to call your function without having to read the code. You should
+;; include what each argument is for. -1
+(define ( smart-construct-date m d y)
+  (cond
+    [ (and
+       (<= 1900 y 2099)
+       (< 0 m 13)
+       (or
+          ( and (large_month? m)
+             (< 0 d 32))
+         ( and (small_month? m)
+             (< 0 d 31))
+         ( or
+           (and (= m 2) (leap? y)
+              (< 0 d 30))
+           (and (= m 2) (not (leap? y))
+              (< 0 d 29)))))
+      (Date m d y)]
+    [else (error "smart-construct-date: input invalid date") ]
+     ))
+(check-expect ( smart-construct-date 1 2 1997) (Date 1 2 1997))
+(check-expect ( smart-construct-date 2 29 2008) (Date 2 29 2008))
+(check-error ( smart-construct-date 2 29 2007) "smart-construct-date: input invalid date")
+(check-error ( smart-construct-date 6 31 2017) "smart-construct-date: input invalid date")
+(check-error ( smart-construct-date 6 31 2500) "smart-construct-date: input invalid date")
+(check-error ( smart-construct-date 18 31 2017) "smart-construct-date: input invalid date")
+
+(: date=? (Date Date -> Boolean))
+;;to see if two given dates are of the same date
+( define (date=? D1 D2)
+   (match D1
+     [(Date m1 d1 y1)
+      (match D2
+        [(Date m2 d2 y2)
+         ( and (= d1 d2) (= m1 m2) (= y1 y2))])]))
+
+ (check-expect (date=? (Date 1 2 1997) (Date 1 14 1997)) #f)            
+ (check-expect (date=? (Date 1 2 1997) (Date 1 2 1997)) #t)
+
+
+(: date<? (Date Date -> Boolean))
+;; to see if the first date occurs before the second date
+( define (date<? D1 D2)
+   (match D1
+     [(Date m1 d1 y1)
+      (match D2
+        [(Date m2 d2 y2)
+         (if (< y1 y2) #t
+             ( if (> y1 y2) #f
+                  (if (< m1 m2) #t
+                      (if (> m1 m2) #f
+                          (if (< d1 d2) #t #f)))))])]))
+                              
+(check-expect (date<? (Date 1 2 1997) (Date 1 14 1997)) #t)                                
+(check-expect (date<? (Date 1 2 1997) (Date 1 1 2008)) #t)         
+
+(: m_adjustment (Date -> Integer))
+;;adjust month to an important value in day-of-week
+( define (m_adjustment D)
+   (match D
+     [(Date m d y)
+      (cond
+        [(= m 3) 4]
+        [(= m 4) 0]
+        [(= m 5) 2]
+        [(= m 6) 5]
+        [(= m 7) 0]
+        [(= m 8) 3]
+        [(= m 9) 6]
+        [(= m 10) 1]
+        [(= m 11) 4]
+        [(= m 12) 6]
+        [ (and (= m 1 ) (leap? y)) 0]
+        [ (and (= m 1 ) (not(leap? y))) 1]
+        [ (and (= m 2 ) (leap? y)) 3]
+        [ else 4])]))
+
+(check-expect (m_adjustment (Date 2 2 2008)) 3)
+(check-expect (m_adjustment (Date 2 2 2007)) 4)
+(check-expect (m_adjustment (Date 1 2 2008)) 0)
+(check-expect (m_adjustment (Date 1 2 2007)) 1)
+(check-expect (m_adjustment (Date 8 2 2008)) 3)
+
+
+(: number-to-day (Integer -> Day))
+;;turn number from 0 to 6 into day
+( define ( number-to-day n)
+   (cond
+     [(or (< n 0) (> n 6)) (error "number-to-day: input has to be between 0 and 6")]
+     [(= n 0) 'Sun]
+     [(= n 1) 'Mon]
+     [(= n 2) 'Tue]
+     [(= n 3) 'Wed]
+     [(= n 4) 'Thu]
+     [(= n 5) 'Fri]
+     [else 'Sat]))
+(check-expect ( number-to-day 5) 'Fri)
+ (check-error ( number-to-day 12) "number-to-day: input has to be between 0 and 6")
+
+
+(: day-of-week (Date -> Day))
+;; turn date into day
+(define (day-of-week D)
+        (number-to-day
+         ( match D
+          [(Date m d y)
+           (remainder
+            (+
+             (- y 1900)
+             (m_adjustment D)
+             d
+             (exact-floor (/ y 4))) 7)])))
+       
+(check-expect (day-of-week (Date 10 11 2017))'Wed)
+(check-expect (day-of-week (Date 1 2 1997))'Thu)
+(check-expect (day-of-week (Date 1 2 1998))'Fri)
+(check-expect (day-of-week (Date 2 28 1949))'Mon)
+
+
+
+;; GRADER: You were supposed to test at least one day from each month. -1
+
+;; GRADER: Forgot to put (test) to run tests. -1
+
+
+
+"------------------- Grader's tests -------------------"
+
+"grader's tests for leap"
+(check-expect (leap? 2000) #t)
+(check-expect (leap? 2001) #f)
+(check-expect (leap? 2004) #t)
+(check-expect (leap? 2100) #f)
+(check-expect (leap? 1900) #f)
+(check-error (leap? -3) "error")  ;; GRADER: test failed with error: leap? :integer input should not be negative 
+
+"grader's tests for smart-construct-date"
+(check-error  (smart-construct-date 1 1 1000) "error")
+(check-error  (smart-construct-date 0 1 2000) "error")
+(check-expect (smart-construct-date 1 2 2000)  (Date 1 2 2000))
+(check-expect (smart-construct-date 1 31 2000) (Date 1 31 2000))
+(check-error  (smart-construct-date 1 32 2000) "error")
+(check-expect (smart-construct-date 2 29 2000) (Date 2 29 2000))
+(check-error  (smart-construct-date 2 29 2001) "error")
+(check-error  (smart-construct-date 1 0 2000) "error")
+(check-expect (smart-construct-date 11 30 2017) (Date 11 30 2017))
+(check-error (smart-construct-date 11 31 2017) "error")
+
+"grader's tests for date=?"
+(check-expect (date=? (Date 1 2 2003) (Date 1 2 2003)) #t)
+(check-expect (date=? (Date 1 2 2003) (Date 2 2 2003)) #f)
+(check-expect (date=? (Date 1 2 2003) (Date 1 1 2003)) #f)
+(check-expect (date=? (Date 1 2 2003) (Date 1 2 2004)) #f)
+
+"grader's tests for date<?"
+(check-expect (date<? (Date 7 7 2003) (Date 7 7 2004)) #t)
+(check-expect (date<? (Date 7 6 2003) (Date 7 7 2003)) #t)
+(check-expect (date<? (Date 6 7 2003) (Date 7 7 2003)) #t)
+(check-expect (date<? (Date 7 7 2003) (Date 7 7 2003)) #f)
+(check-expect (date<? (Date 7 7 2003) (Date 7 7 2002)) #f)
+(check-expect (date<? (Date 7 7 2003) (Date 7 6 2003)) #f)
+(check-expect (date<? (Date 7 7 2003) (Date 6 7 2003)) #f)
+
+"grader's tests for day-of-week"
+(check-expect (day-of-week (Date  1 10 2017)) 'Tue)
+(check-expect (day-of-week (Date  2 10 2017)) 'Fri)
+(check-expect (day-of-week (Date  3 10 2017)) 'Fri)
+(check-expect (day-of-week (Date  4 10 2017)) 'Mon)
+(check-expect (day-of-week (Date  5 10 2017)) 'Wed)
+(check-expect (day-of-week (Date  6 10 2017)) 'Sat)
+(check-expect (day-of-week (Date  7 10 2017)) 'Mon)
+(check-expect (day-of-week (Date  8 10 2017)) 'Thu)
+(check-expect (day-of-week (Date  9 10 2017)) 'Sun)
+(check-expect (day-of-week (Date 10 10 2017)) 'Tue)
+(check-expect (day-of-week (Date 11 10 2017)) 'Fri)
+(check-expect (day-of-week (Date 12 10 2017)) 'Sun)
+(check-expect (day-of-week (Date  1 8 2000)) 'Sat)
+(check-expect (day-of-week (Date  2 8 2000)) 'Tue)
+(check-expect (day-of-week (Date  3 8 2000)) 'Wed)
+
+(test)
+
+"------------------------------------------------------"
+
+;; Lab 3 guideline
+
+;; === correctness ===
+
+;; leap?                   4 / 4
+;; smart-construct-date    9 / 9 
+
+;; date=?                  5 / 5
+;; date<?                  5 / 5
+
+;; day-of-week             9 / 9
+
+;; === style ===
+
+;; code layout                        6 / 6
+;; identifiers are well named         8 / 8
+;; program decomposition (helpers)    8 / 8
+
+;; contracts (type ascriptions)       4 / 4
+;; well-written purposes              3 / 4
+;; adequate tests                     6 / 8
+
+;; clarity (clear logic)              8 / 8
+
+;; svn used correctly                 2 / 2
+
+;; _total-score_                      77/80
+
+;; graded by Anne Farrell
