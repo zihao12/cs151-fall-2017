@@ -1,0 +1,559 @@
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require racket/local)
+(require "../include/cs151-core.rkt")
+
+
+;;Problem 1
+(define-type CardBrand
+  (U 'AmEx 'WorkPermit 'DisasterCard 'Coverup))
+
+(define-struct CreditCard
+  ([type : CardBrand]
+   [num  : Integer]))
+
+(: drop-the-last-digit(Integer -> Integer))
+;;leave out the last digit of a given number
+( define (drop-the-last-digit N)
+   (if (> (abs N) 10) (exact-floor (/ (abs N) 10)) N))
+(check-expect (drop-the-last-digit 233) 23 )
+(check-expect (drop-the-last-digit 2) 2 )
+
+(: length-of-the-digit (Integer -> Integer))
+;;return the length of a given digit
+(define (length-of-the-digit N)
+  (if (> (abs N) 9) (+ 1 (length-of-the-digit (drop-the-last-digit N))) 1))
+(check-expect (length-of-the-digit 233) 3)      
+(check-expect (length-of-the-digit 3) 1)      
+      
+      
+
+(: get-the-first-digit (Integer -> Integer))
+;;get the first digit of a given integer
+(define (get-the-first-digit N)
+  (cond
+    [(< N 10) N]
+    [else (get-the-first-digit (drop-the-last-digit N))]))
+(check-expect (get-the-first-digit 65656) 6 )
+
+(: brand-digit (CardBrand -> Integer))
+;;takes in a CardBrand and returns  the first digit of a valid card number for a card issued by that brand
+( define (brand-digit d)
+   (match d
+     ['AmEx 3]
+     ['WorkPermit 4]
+     ['DisasterCard 5]
+     ['Coverup 6]))
+(check-expect (brand-digit 'AmEx) 3)
+
+(: brand-valid? (CreditCard -> Boolean))
+;;takes in a creditcard and see if the number if valid
+;;;;;;;;; do i need to consider the lengtho of the number
+(define (brand-valid? c)
+  (match c
+    [ (CreditCard type num)
+      (and (= (length-of-the-digit num) 16)
+        (= (brand-digit type) (get-the-first-digit num)))]))
+(check-expect (brand-valid? (CreditCard 'Coverup 6666666666666666)) #t)
+(check-expect (brand-valid? (CreditCard 'Coverup 666666666666666)) #f)
+
+(: build-card (Integer -> CreditCard))
+;; takes in an Integer (the card number) and returns a properly branded CreditCard
+(define (build-card d)
+  (cond
+    [( = 16 (length-of-the-digit d))
+     (cond
+    [(= (get-the-first-digit d) 3) (CreditCard 'AmEx d)]
+    [(= (get-the-first-digit d) 4) (CreditCard 'WorkPermit d)]
+    [(= (get-the-first-digit d) 5) (CreditCard 'DisasterCard d)]
+    [(= (get-the-first-digit d) 6) (CreditCard 'Coverup d)]
+    [else (error "build-card: input not valid")])]
+    [else (error "build-card: input not valid")]))
+ (check-expect (build-card 6666666666666666)  (CreditCard 'Coverup 6666666666666666) )  
+ (check-error (build-card 9666666666666666) "build-card: input not valid")
+(check-error (build-card 666666666666666) "build-card: input not valid")
+
+;;Problem 2
+(define-type IntTree (U IntNode 'IEmpty))
+
+(define-struct IntNode
+  ([val   : Integer]
+   [left  : IntTree]
+   [right : IntTree]))
+
+(define-type StringTree (U StringNode 'SEmpty))
+
+(define-struct StringNode
+  ([val   : String]
+   [left  : StringTree]
+   [right : StringTree]))
+
+(: mirror (IntTree -> IntTree))
+;;creates a mirror image of the given binary tree
+(define (mirror t)
+  (match t
+    ['IEmpty 'IEmpty]
+    [(IntNode v l r)
+    (IntNode v r l)]))
+;;grader: reconsider your logic. It needs to be a recursive call
+;; -2
+
+(check-expect (mirror (IntNode 1 (IntNode 2 'IEmpty 'IEmpty) (IntNode 3 'IEmpty 'IEmpty)))
+              (IntNode 1 (IntNode 3 'IEmpty 'IEmpty) (IntNode 2 'IEmpty 'IEmpty)))
+
+(: int-tree->string-tree (IntTree -> StringTree))
+;; turn a IntTree into a StringTree
+(define (int-tree->string-tree  I)
+  (match I
+    ['IEmpty 'SEmpty]
+    [ (IntNode v l r)
+      (StringNode (number->string v)
+                 (int-tree->string-tree  l)
+                 (int-tree->string-tree  r))]))
+(check-expect (int-tree->string-tree (IntNode 1 (IntNode 2 'IEmpty 'IEmpty) (IntNode 3 'IEmpty 'IEmpty)))
+              (StringNode (number->string 1)
+                          (StringNode (number->string 2) 'SEmpty 'SEmpty)
+                          (StringNode (number->string 3) 'SEmpty 'SEmpty)))
+                 
+(: right-edge (StringTree -> String))
+;;return the right-edge of a given StringTree
+(define (right-edge st)
+  (match st
+    ['SEmpty ""]
+    [ (StringNode v l r)
+      (string-append v
+                     (right-edge r))]))
+(check-expect (right-edge(StringNode "x"
+                          (StringNode "xx" 'SEmpty 'SEmpty)
+                          (StringNode "yy" 'SEmpty
+                                      (StringNode "zzz" 'SEmpty 'SEmpty)))) "xyyzzz")
+;;Problem 3
+(define-type 3Tree (U 3Node '3Empty))
+
+(define-struct 3Node
+  ([root : Integer]
+   [lsub : 3Tree]
+   [msub : 3Tree]
+   [rsub : 3Tree]))
+
+(define T (3Node 1
+       (3Node 2
+              (3Node 3 '3Empty '3Empty '3Empty)
+              (3Node 4 '3Empty '3Empty '3Empty)
+              '3Empty)
+       (3Node 8
+              '3Empty
+              (3Node 7
+                     (3Node 5 '3Empty '3Empty '3Empty)
+                     '3Empty
+                     (3Node 6 '3Empty '3Empty '3Empty))
+              '3Empty)
+       (3Node 9
+              '3Empty
+              '3Empty
+              (3Node 0 '3Empty '3Empty '3Empty))))
+
+(define T2 (3Node 2
+       (3Node 3
+              (3Node 4 '3Empty '3Empty '3Empty)
+              (3Node 5 '3Empty '3Empty '3Empty)
+              '3Empty)
+       (3Node 9
+              '3Empty
+              (3Node 8
+                     (3Node 6 '3Empty '3Empty '3Empty)
+                     '3Empty
+                     (3Node 7 '3Empty '3Empty '3Empty))
+              '3Empty)
+       (3Node 10
+              '3Empty
+              '3Empty
+              (3Node 1 '3Empty '3Empty '3Empty))))
+
+(: num-nodes : 3Tree -> Integer)
+;;count the number of nodes in a tree
+(define (num-nodes t)
+  (match t
+    ['3Empty 0]
+    [(3Node _ ls ms rs)
+     (+ 1
+        (num-nodes ls)
+        (num-nodes ms)
+        (num-nodes rs))]))
+(check-expect (num-nodes T) 10)
+       
+(: sum-nodes : 3Tree -> Integer)
+;;add the values of all the nodes in the given tree
+(define (sum-nodes t)
+  (match t
+    ['3Empty 0]
+    [(3Node r ls ms rs)
+     (+ r
+        (sum-nodes ls)
+        (sum-nodes ms)
+        (sum-nodes rs))]))
+(check-expect (sum-nodes T) 45)
+ 
+(: height : 3Tree -> Integer)
+;;return the number of generations in a tree
+(define (height t)
+  (match t
+    ['3Empty 0]
+    [ (3Node _ ls ms rs)
+      (+ 1
+         (max (height ls) (height ms) (height rs)))]))
+(check-expect (height T) 4)
+
+(: contains? : 3Tree Integer -> Boolean)
+;; see if the given tree contains a given integer
+(define (contains? t n)
+  (match t
+    ['3Empty #f]
+    [(3Node r ls ms rs)
+     (or (= r n)
+         (contains? ls n)
+         (contains? ms n)
+         (contains? rs n))]))
+(check-expect (contains? T 4) #t)
+(check-expect (contains? T 11) #f)
+
+(: leftmost : 3Tree -> (U Integer 'None))
+;;search for the leftmost element in a given tree
+(define (leftmost t)
+  (match t
+    ['3Empty 'None]
+    [(3Node r ls ms rs)
+       (match ls
+         ['3Empty r]
+         [(3Node r ls ms rs)
+          (leftmost ls)])]))
+(check-expect (leftmost T) 3)
+
+(: farthest-item : 3Tree -> (U Integer 'None))
+;; find the element farthest away from the root
+(define (farthest-item t)
+  (match t
+    ['3Empty 'None]
+    [(3Node r ls ms rs)
+     (cond
+       [(and (= (sub1 (height t)) (height ls))
+             (> (height ls) 0))
+        (farthest-item ls)]
+       [(and (= (sub1 (height t)) (height ms))
+             (> (height ms) 0))
+        (farthest-item ms)]
+       [(and (= (sub1 (height t)) (height ls))
+             (> (height rs) 0))
+        (farthest-item rs)]
+       [else r])]))
+(check-expect (farthest-item T) 5)
+
+(: increment : 3Tree -> 3Tree)
+;;plus one for each leave
+(define (increment t)
+  (match t
+    ['3Empty '3Empty]
+    [(3Node r ls ms rs)
+     (3Node (+ r 1) (increment ls) (increment ms) (increment rs))]))
+(check-expect (increment T) T2)
+
+;;Problem 4
+(define-type Category (U 'Book 'Food 'Electronics))
+
+(define-struct Product
+  ([name  : String]
+   [cat   : Category]
+   [price : Integer]))
+
+(define-type Products (U 'NoProducts ProductCons))
+(define-struct ProductCons
+  ([p    : Product]
+   [rest : Products]))
+
+(define P1 (Product "Harry Potter1" 'Book  20))
+(define P2 (Product "Hamburger1" 'Food  15))
+(define P3 (Product "Iphone X" 'Electronics  700))
+(define P4 (Product "Harry Potter2" 'Book  20))
+(define P5 (Product "Harry Potter3" 'Book  20))
+(define P6 (Product "Hamburger2" 'Food  15))
+(define P7 (Product "Hamburger3" 'Food  15))
+
+(define Purchase1 (ProductCons P1 (ProductCons P2 (ProductCons P3 'NoProducts))))
+(define Purchase2 (ProductCons P1 (ProductCons P4 (ProductCons P5 'NoProducts))))
+(define Purchase3 (ProductCons P2 (ProductCons P6 (ProductCons P7 'NoProducts))))
+(define Purchase4 (ProductCons P1 (ProductCons P2 'NoProducts)))
+ (define SHIP1 (ProductCons P3 'NoProducts))           
+(: order-total : Products -> Integer)
+;; calculate the total bill given the list of products
+(define (order-total ps)
+  (match ps
+    ['NoProducts 0]
+    [(ProductCons p rest)
+     (+ (Product-price p)
+        (order-total rest))]))
+(check-expect (order-total Purchase1) 735)
+
+(: media-mail? : Products -> Boolean)
+;; see if the products can be shiped by media mail
+(define (media-mail? ps)
+  (match ps
+    ['NoProducts #t]
+    [(ProductCons p rest)
+     (and (symbol=? (Product-cat p) 'Book)
+          (media-mail? rest))]))
+(check-expect (media-mail? Purchase1) #f)
+(check-expect (media-mail? Purchase2) #t)
+
+(: perishable? : Products -> Boolean)
+;;see if the products inlcude anything perishable
+(define (perishable? ps)
+  (match ps
+    ['NoProducts #f]
+    [(ProductCons p rest)
+     (or (symbol=? (Product-cat p) 'Food)
+          (perishable? rest))]))
+(check-expect (perishable? Purchase2) #f)
+(check-expect (perishable? Purchase3) #t)
+(check-expect (perishable? Purchase1) #t)
+
+(: product=? : Product Product -> Boolean)
+;; see  if two Products have the same name, category, and price.
+(define (product=? p1 p2)
+  (match* (p1 p2)
+    [((Product n1 c1 price1) (Product n2 c2 price2))
+     (and (string=? n1 n1) (symbol=? c1 c2) (= price1 price2))]))
+
+(check-expect (product=? P1 P1) #t)
+(check-expect (product=? P1 P2) #f)
+
+(: in-stock? : Product Products -> Boolean)
+;; see if a given product is contained in the givem list of products
+(define (in-stock? p ps)
+  (match ps
+    ['NoProducts #f]
+    [(ProductCons p0 rest)
+     (or (product=? p0 p) (in-stock? p rest))]))
+(check-expect   (in-stock? P1 Purchase1)  #t)
+(check-expect   (in-stock? P2 Purchase2)  #f)
+
+(: can-ship? : Products Products -> Boolean)
+;;see if the first list of products are contained in the second list
+(define (can-ship? ps1 ps2)
+  (match ps1
+    ['NoProducts #t]
+    [(ProductCons p rest)
+      (and (in-stock? p ps2) (can-ship? rest ps2))]))
+(check-expect (can-ship? Purchase4 Purchase1)#t)
+(check-expect (can-ship? Purchase4 Purchase2)#f)
+
+(: back-ordered : Products Products -> Products)
+;; make a list a products in the first list that go missing in the second list
+(define (back-ordered ps1 ps2)
+  (match ps1
+    ['NoProducts 'NoProducts]
+    [(ProductCons p rest)
+     (if (in-stock? p ps2) (back-ordered rest ps2) (ProductCons p (back-ordered rest ps2)))]))
+(check-expect (back-ordered Purchase1 Purchase4)SHIP1)
+(check-expect (back-ordered Purchase4 Purchase1)'NoProducts)
+
+;;Grader's Tests
+(check-expect (brand-digit 'AmEx) 3)
+(check-expect (brand-digit 'Coverup) 6)
+(check-expect (brand-digit 'DisasterCard) 5)
+(check-expect (brand-digit 'WorkPermit) 4)
+
+(check-expect (brand-valid? (CreditCard 'AmEx 3999999555345212)) #t)
+(check-expect (brand-valid? (CreditCard 'WorkPermit 4999999555345212)) #t)
+(check-expect (brand-valid? (CreditCard 'DisasterCard 1999999555345212)) #f)
+(check-expect (brand-valid? (CreditCard 'DisasterCard 5999999555345212)) #t)      
+(check-expect (brand-valid? (CreditCard 'Coverup 6)) #f)
+
+(check-expect (build-card 3999999555345212) (CreditCard 'AmEx 3999999555345212))
+(check-expect (build-card 4999999555345212) (CreditCard 'WorkPermit 4999999555345212))
+(check-expect (build-card 6000000000000322) (CreditCard 'Coverup 6000000000000322))
+(check-expect (build-card 5324234344434343) (CreditCard 'DisasterCard 5324234344434343))
+
+(define tree-1 (IntNode 3 (IntNode 14 (IntNode 54 'IEmpty 'IEmpty) (IntNode 1 'IEmpty 'IEmpty))
+                        (IntNode 6 (IntNode 5 'IEmpty 'IEmpty) (IntNode 15 'IEmpty 'IEmpty))))
+(define mirror-1 (IntNode 3 (IntNode 6 (IntNode 15 'IEmpty 'IEmpty) (IntNode 5 'IEmpty 'IEmpty))
+                          (IntNode 14 (IntNode 1 'IEmpty 'IEmpty) (IntNode 54 'IEmpty 'IEmpty))))
+(define tree-2 (IntNode 17 (IntNode 4 (IntNode 13 (IntNode 11 'IEmpty 'IEmpty) 'IEmpty) 'IEmpty)
+                        'IEmpty))
+(define mirror-2 (IntNode 17 'IEmpty (IntNode 4 'IEmpty (IntNode 13 'IEmpty (IntNode 11 'IEmpty
+                                                                                     'IEmpty)))))
+(define tree-1s (StringNode "3" (StringNode "14" (StringNode "54" 'SEmpty 'SEmpty) (StringNode "1" 'SEmpty 'SEmpty))
+                        (StringNode "6" (StringNode "5" 'SEmpty 'SEmpty) (StringNode "15" 'SEmpty 'SEmpty))))
+(define tree-2s (StringNode "17" (StringNode "4" (StringNode "13" (StringNode "11" 'SEmpty 'SEmpty) 'SEmpty) 'SEmpty)
+                        'SEmpty))
+;(check-expect (mirror tree-1) mirror-1)
+;(check-expect (mirror mirror-1) tree-1)
+(check-expect (mirror 'IEmpty) 'IEmpty)
+(check-expect (mirror (IntNode 71 'IEmpty 'IEmpty)) (IntNode 71 'IEmpty 'IEmpty))
+;(check-expect (mirror tree-2) mirror-2)
+;(check-expect (mirror mirror-2) tree-2)
+
+(check-expect (int-tree->string-tree  tree-1) tree-1s)
+(check-expect (int-tree->string-tree 'IEmpty) 'SEmpty)
+(check-expect (int-tree->string-tree tree-2) tree-2s)
+
+(check-expect (right-edge tree-1s) "3615")
+(check-expect (right-edge tree-2s) "17")
+(check-expect (right-edge 'SEmpty) "")
+
+(define 3tree-1
+  (3Node 1 (3Node 2(3Node 3 '3Empty '3Empty '3Empty)(3Node 4 '3Empty '3Empty '3Empty) '3Empty)
+         (3Node 8'3Empty (3Node 7(3Node 5 '3Empty '3Empty '3Empty)'3Empty
+                                (3Node 6 '3Empty '3Empty '3Empty))'3Empty)
+         (3Node 9'3Empty'3Empty (3Node 0 '3Empty '3Empty '3Empty))))
+(define 3tree-2 (3Node 3 '3Empty (3Node 4 '3Empty (3Node 5 '3Empty '3Empty '3Empty) '3Empty) '3Empty))
+(define 3tree-3
+  (3Node 1 (3Node 2(3Node -3 '3Empty '3Empty '3Empty)(3Node -4 '3Empty '3Empty '3Empty) '3Empty)
+         (3Node -84'3Empty (3Node 7(3Node -11 '3Empty '3Empty '3Empty)'3Empty
+                                (3Node 6 '3Empty '3Empty '3Empty))'3Empty)
+         (3Node 9'3Empty'3Empty (3Node 0 '3Empty '3Empty '3Empty))))
+(define 3tree2-i (3Node 4 '3Empty (3Node 5 '3Empty (3Node 6 '3Empty '3Empty '3Empty)'3Empty)
+                        '3Empty))
+
+(check-expect (num-nodes 3tree-1) 10)
+(check-expect (num-nodes '3Empty) 0)
+(check-expect (num-nodes 3tree-2) 3)
+(check-expect (num-nodes (3Node 5 '3Empty '3Empty '3Empty)) 1)
+
+(check-expect (sum-nodes 3tree-1) 45)
+(check-expect (sum-nodes '3Empty) 0)
+(check-expect (sum-nodes 3tree-2) 12)
+(check-expect (sum-nodes (3Node 5 '3Empty '3Empty '3Empty)) 5)
+(check-expect (sum-nodes 3tree-3) -77)
+
+(check-expect (height 3tree-1) 4)
+(check-expect (height 3tree-2) 3)
+(check-expect (height '3Empty) 0)
+(check-expect (height (3Node 5 '3Empty '3Empty '3Empty)) 1)
+
+(check-expect (contains? 3tree-1 11) #f)
+(check-expect (contains? 3tree-1 1) #t)
+(check-expect (contains? '3Empty 15) #f)
+(check-expect (contains? '3Empty 0) #f)
+(check-expect (contains? (3Node 5 '3Empty '3Empty '3Empty) 5) #t)
+(check-expect (contains? (3Node 4 '3Empty '3Empty '3Empty) 5) #f)
+
+(check-expect (leftmost 3tree-1) 3)
+(check-expect (leftmost 3tree-3) -3)
+(check-expect (leftmost '3Empty) 'None)
+(check-expect (leftmost (3Node 5 '3Empty '3Empty '3Empty)) 5)
+
+(check-expect (farthest-item 3tree-2) 5)
+(check-expect (farthest-item 3tree-1) 5)
+(check-expect (farthest-item 3tree-3) -11)
+(check-expect (farthest-item '3Empty) 'None)
+(check-expect (farthest-item (3Node 15 '3Empty '3Empty '3Empty)) 15)
+
+(check-expect (increment '3Empty) '3Empty)
+(check-expect (increment (3Node 5 '3Empty '3Empty '3Empty)) (3Node 6 '3Empty '3Empty '3Empty))
+(check-expect (increment (3Node -5 '3Empty '3Empty '3Empty)) (3Node -4 '3Empty '3Empty '3Empty))
+(check-expect (increment 3tree-2)3tree2-i)
+
+(define order1 (ProductCons (Product "x" 'Book 100) (ProductCons (Product "y" 'Book 300)
+                                         (ProductCons (Product "z" 'Book 200) 'NoProducts))))
+(define order2 (ProductCons (Product "x" 'Book 102) (ProductCons (Product "x" 'Food 330)
+                                         (ProductCons (Product "z" 'Book 200) 'NoProducts))))
+(define order3 (ProductCons (Product "x" 'Book 102) (ProductCons (Product "x" 'Food 330)
+                                         (ProductCons (Product "z" 'Electronics 211) 'NoProducts))))
+(define order1-1 (ProductCons (Product "x" 'Book 100) (ProductCons (Product "y" 'Book 300)
+                                         (ProductCons (Product "z" 'Book 200)
+                                                      (ProductCons (Product "last" 'Book 600)'NoProducts)))))
+(define order1-2 (ProductCons (Product "z" 'Book 200) (ProductCons (Product "y" 'Book 300)
+                                         (ProductCons  (Product "x" 'Book 100) 'NoProducts))))
+(check-expect (order-total order1) 600)
+(check-expect (order-total order2) 632)
+(check-expect (order-total order3) 643)
+(check-expect (order-total 'NoProducts) 0)
+
+(check-expect (media-mail? order1) #t)
+(check-expect (media-mail? order2) #f)
+(check-expect (media-mail? order3) #f)
+(check-expect (media-mail? 'NoProducts) #t)
+
+(check-expect (perishable? order1) #f)
+(check-expect (perishable? order2) #t)
+(check-expect (perishable? order3) #t)
+(check-expect (perishable? 'NoProducts) #f)
+(check-expect (perishable? (ProductCons (Product "Eat" 'Electronics 444) 'NoProducts)) #f)
+
+(check-expect (product=? (Product "a" 'Book 100) (Product "a" 'Food 100)) #f)
+(check-expect (product=? (Product "a" 'Book 101) (Product "a" 'Book 100)) #f)
+;(check-expect (product=? (Product "ab" 'Book 100) (Product "a" 'Book 100)) #f)
+(check-expect (product=? (Product "ab" 'Book 100) (Product "ab" 'Book 100)) #t)
+(check-expect (product=? (ProductCons-p order1) (ProductCons-p order1)) #t)
+(check-expect (product=? (ProductCons-p order1) (ProductCons-p order2)) #f)
+
+(check-expect (in-stock? (Product "z" 'Book 200) order1) #t)
+(check-expect (in-stock? (Product "z" 'Book 220) order1 ) #f)
+
+(check-expect (can-ship? order1 order2) #f)
+(check-expect (can-ship? 'NoProducts order1) #t)
+(check-expect (can-ship? (ProductCons (Product "y" 'Book 300)
+                                         (ProductCons (Product "z" 'Book 200) 'NoProducts))
+                        order1) #t)
+(check-expect (can-ship? order1-1 order1) #f)
+(check-expect (can-ship? order1 order1-1) #t)
+(check-expect (can-ship? order1-2 order1) #t)
+
+(check-expect (back-ordered order1-1 order1) (ProductCons (Product "last" 'Book 600)'NoProducts))
+(check-expect (back-ordered order1 order1) 'NoProducts)
+(check-expect (back-ordered order1 'NoProducts) order1)
+(check-expect (back-ordered order2 order1) (ProductCons (Product "x" 'Book 102)
+                                                        (ProductCons (Product "x" 'Food 330) 'NoProducts)))
+
+;; Homework 3 guideline
+
+;; === correctness ===
+
+;; problem 1
+;; - brand-digit                      / 2
+;; - brand-valid?                     / 2
+;; - build-card                       / 2
+
+;; problem 2
+;; - mirror                           1/ 3
+;; - int-tree->string-tree            / 3
+;; - right-edge                       / 3
+
+;; problem 3
+;; - num-nodes                        / 2
+;; - sum-nodes                        / 2
+;; - height                           / 3
+;; - contains?                        / 3
+;; - leftmost                         / 3
+;; - farthest-item                    / 3
+;; - increment                        / 2
+
+;; problem 4
+;; - order-total                      / 3
+;; - media-mail?                      / 2
+;; - perishable?                      / 2
+;; - product=?                        1/ 2 ;;grader: failing one corner case
+;; - in-stock?                        / 3
+;; - can-ship?                        / 3
+;; - back-ordered                     / 3
+
+;; === style ===
+
+;; code layout                        / 8
+;; identifiers are well named         / 6
+;; program decomposition (helpers)    / 4
+
+;; contracts (type ascriptions)       / 8
+;; well-written purposes              / 6
+;; adequate tests                     / 6
+
+;; clarity (clear logic)              / 6
+
+;; svn used correctly                 / 5
+
+;; _total-score_                    97/ 100
+
+;; graded by Wendy Li
+;; Great Job!
+
+(test)
