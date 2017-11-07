@@ -2,6 +2,8 @@
 (require "../include/cs151-image.rkt")
 (require "../include/cs151-core.rkt")
 
+(provide alt-shaded-rows)
+
 (: num-text (Integer -> Image))
   ;; produce an image of the given number
   (define (num-text n)
@@ -80,7 +82,7 @@
      ]
     ))
 
-(num-alt-shaded-rows 0 8 8 36 "ivory" "maroon")
+;s(num-alt-shaded-rows 0 8 8 36 "ivory" "maroon")
  
 
 
