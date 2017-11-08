@@ -1,1 +1,321 @@
-hw2 pending; held up due to clerical error -- coming soon!
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require racket/local)
+(require "../include/cs151-core.rkt")
+
+;;Problem 1
+(: mobile-broadband-cost (Integer -> Integer))
+;;compute singular wireless charges given number of megabytes
+(define (mobile-broadband-cost m)
+  (cond
+    [(<= m 300) 20]
+    [(< 300 m 3072) 30]
+    [else
+     (+ 30
+     (* 15
+     (exact-ceiling (/ (- m 3072) 1024)))
+     )]
+    ))
+(check-expect (mobile-broadband-cost 5000) 60)
+(check-expect (mobile-broadband-cost 300) 20)
+(check-expect (mobile-broadband-cost 3072) 30)
+
+;; problem 2
+;;define the two helper functions
+(: drop-the-last-digit(Integer -> Integer))
+;;leave out the last digit of a given number
+( define (drop-the-last-digit N)
+   (exact-floor (/ (abs N) 10)))
+(check-expect (drop-the-last-digit 233) 23 )
+
+(: equal-last-digit? (Integer Integer -> Boolean))
+;;see if the given digit equals the last digit of a given integer
+( define (equal-last-digit? N d)
+   (cond
+     [(= 0
+         (remainder (- N d) 10)) 
+         #t]
+     [else #f]))
+(check-expect (equal-last-digit? 233 4) #f )
+(check-expect (equal-last-digit? 233 3) #t )
+
+;;questIon A
+(: contains-digit? (Integer Integer -> Boolean))
+;;see if a given integer contains a given integer
+(define (contains-digit? N d)
+   ( cond
+      [(or(> d 9)(< d 0))(error "contains-digit?: digit must be in the range 0-9")]
+      [(< (abs N) d) #f]
+      [(= 0 (remainder (- (abs N) d) 10))
+       #t]
+      [else
+       (contains-digit?
+       (drop-the-last-digit N)
+        d)
+       ]
+))
+(check-expect (contains-digit? 123 3) #t)
+(check-expect (contains-digit? 124 3) #f)
+(check-error (contains-digit? 123 10) "contains-digit?: digit must be in the range 0-9")
+
+(: all-digits>=? (Integer Integer -> Boolean))
+;;see if the digits of a given integer are all greater or equal to a given integer
+(define (all-digits>=? N d)
+   ( cond
+      [(or(> d 9)(< d 0))(error "all-digits>=? digit must be in the range 0-9")]
+      [(and (<= d N) (< N 10)) #t]
+      [ (and 
+       (> (abs N)
+       (* 10 (exact-ceiling (/ (- (abs N) d) 10))))
+       (not (= (remainder (- (abs N) d) 10) 0)))
+        #f]
+      
+      [else 
+       (all-digits>=? (drop-the-last-digit N) d)
+       ]
+))
+(check-expect (all-digits>=? 123 3) #f)
+(check-expect (all-digits>=? 543 3) #t)
+(check-error (all-digits>=? 123 10) "all-digits>=? digit must be in the range 0-9")
+;; Question 3
+;;Define a helper function first
+(: count-occurences (Integer Integer -> Integer))
+;;count the the number of occurences of a given digit in a given integer
+(define (count-occurences N d)
+  ( cond
+     [(or(> d 9)(< d 0))(error "count-occurences: digit must be in the range 0-9")]
+     [(= N 0) 0]
+     ;;Here we do not consider 0 to be a digit
+     [(equal-last-digit? N d)
+      (add1 (count-occurences (drop-the-last-digit N) d))
+      ]
+     [else
+      (count-occurences (drop-the-last-digit N) d)
+      ]))
+(check-expect (count-occurences 233 3) 2)
+(check-error (count-occurences 123 10) "count-occurences: digit must be in the range 0-9")
+
+(: at-least-k-occurrences (Integer Integer Integer -> Boolean))
+;;see if the given digit appears at least given times in the given number
+(define (at-least-k-occurrences N d k)
+  ( cond
+     [(or(> d 9)(< d 0))(error "at-least-k-occurrences: digit must be in the range 0-9")]
+     [(>= (count-occurences N d) k) #t]
+     [else #f]))
+(check-expect (at-least-k-occurrences 2333 3 3) #t )
+(check-error (at-least-k-occurrences 123 10 3) "at-least-k-occurrences: digit must be in the range 0-9")
+
+;;problem 3
+( define-struct Activity
+   ([mins-standing : Integer]
+    [cals-burned : Integer]
+    [mins-elev-hr : Integer]))
+
+( define testA1 (Activity 120 5000 90 ))
+( define testA2 (Activity 0 250 10 ))
+;; function 1
+(: fat-burned (Activity -> Exact-Rational))
+;;computer the number of grams of fats burned based on data in Activity
+( define (fat-burned A)
+   (/ (Activity-cals-burned A)
+      3500))
+(check-expect (fat-burned testA1) (+ 1 3/7)) 
+(check-expect (fat-burned testA2) 1/14)
+
+(: cals-per-min (Activity -> Exact-Rational))
+;;compute calories burned per minute of exercise
+(define (cals-per-min  A)
+  (/
+   (Activity-cals-burned A)
+   (Activity-mins-elev-hr A)
+   ))
+(check-expect (cals-per-min  testA1) (+ 55 5/9))
+(check-expect (cals-per-min  testA2) 25)
+
+(: active? (Activity -> Boolean))
+;;see if the person is active druing the day, given data from his/her activity
+( define (active? A)
+   (cond
+     [(and
+       (> (Activity-mins-standing A) 80)
+       (> (Activity-cals-burned A) 250)
+       (> (Activity-mins-elev-hr A)30))
+      #t]
+     [else #f]))
+(check-expect (active? testA1) #t)
+(check-expect (active? testA2) #f)
+
+(: as-good? (Activity Activity -> Boolean))
+;;see if performance today if better than yesterday
+(define (as-good? A1 A2)
+  (cond
+     [(and
+       (> (Activity-mins-standing A1) (Activity-mins-standing A2))
+       (> (Activity-cals-burned A1) (Activity-cals-burned A2))
+       (> (Activity-mins-elev-hr A1)(Activity-mins-elev-hr A2)))
+      #t]
+     [else #f]))
+(check-expect (as-good? testA1 testA2) #t)
+(check-expect (as-good? testA2 testA1) #f)
+
+;;Problem 4
+(define-struct Quadratic
+  ([a : Real]
+   [b : Real]
+   [c : Real]))
+
+(define testQ1 (Quadratic 1 2 1))
+(define testQ2 (Quadratic 1 6 9))
+
+(: value-at ( Quadratic Real -> Real))
+;;compute the y-value of a given quardratic function given x
+(define (value-at Q x)
+  (+
+   (* (Quadratic-a Q) x x)
+   (* (Quadratic-b Q)x)
+   (Quadratic-c Q )
+   ))
+(check-within (value-at testQ1 -1 ) 0 0.0001)
+(check-within (value-at testQ2 2 ) 25 0.0001)
+
+
+(: to-string (Quadratic -> String))
+;; output "ax^2+bx+c" as a stirng
+(define (to-string Q)
+  (string-append
+   (number->string(Quadratic-a Q))
+   "x^2+"
+   (number->string(Quadratic-a Q))
+   "x+"
+   (number->string(Quadratic-a Q))
+   ))
+;;test
+(to-string testQ1)
+(to-string testQ2)
+
+;;I understand it as horizontal scale
+(: scale (Quadratic Real -> Quadratic))
+;;Scale the quadratic horizontally by the given constant
+( define (scale Q c)
+   (Quadratic
+    (* c c (Quadratic-a Q))
+    (* c (Quadratic-b Q))
+    (Quadratic-c Q)))
+(check-expect
+ (scale testQ1 2)
+ (Quadratic 4 4 1))
+
+
+(: integral (Quadratic Real Real -> Real))
+;; compute the integral of a given quadratic function from left x to right x)
+( define (integral Q l r)
+   (+
+    (* 1/3
+       (Quadratic-a Q)
+       (-(* r r r) (* l l l)))
+    (* 1/2
+       (Quadratic-b Q)
+       (- (* r r) (* l l)))
+    (* (Quadratic-c Q)
+       (- r l))))
+(check-expect (integral testQ1 -2 0) 2/3)
+
+(: discriminant (Quadratic -> Real))
+;;Compute the value of the discriminant, b2–4ac.
+( define (discriminant Q)
+   (-
+    (sqr (Quadratic-b Q))
+    (* 4 (Quadratic-a Q) (Quadratic-c Q))))
+
+(check-expect (discriminant testQ1) 0 )
+
+(: num-real-roots (Quadratic -> Integer))
+; return the number of real roots of a given quadratic function
+(define (num-real-roots Q)
+  (cond
+    [(> (discriminant Q) 0) 2]
+    [(= (discriminant Q) 0) 1]
+    [else 0]))
+(check-expect (num-real-roots testQ1) 1)
+
+(: has-real-roots? (Quadratic -> Boolean))
+;;see whether the given quadratic has real roots
+( define (has-real-roots? Q)
+   ( cond
+      [(>= (num-real-roots Q) 0) #t]
+      [else #f]))
+(check-expect (has-real-roots? testQ1) #t)
+
+(: intersect? (Quadratic Quadratic -> Boolean))
+;;see if two given quadratic functions have intersections
+( define (intersect? Q1 Q2)
+   (cond
+     [ (has-real-roots?
+        (Quadratic
+         (- (Quadratic-a Q1) (Quadratic-a Q2))
+         (- (Quadratic-b Q1) (Quadratic-b Q2))
+         (- (Quadratic-c Q1) (Quadratic-c Q2))))
+       #t]
+     [else #f]))
+(check-expect (intersect? testQ1 testQ2) #t)
+
+(define-struct Linear
+  ([a : Real]
+   [b : Real]))
+
+(: derivative (Quadratic -> Linear))
+;;compute the derivative of a given quadratic function
+( define (derivative Q)
+   (Linear
+    (* 2 (Quadratic-a Q))
+    (Quadratic-b Q)))
+(check-expect (derivative testQ1) (Linear 2 2))                               
+(test)
+
+;; Homework 2 guideline
+
+;; === correctness ===
+
+;; problem 1
+;; - mobile-broadband-cost           3 / 3
+
+;; problem 2
+;; - contains-digit?                 3 / 3
+;; - all-digits>=?                   3 / 3
+;; - at-least-k-occurrences?         3 / 3
+
+;; problem 3
+;; - fat-burned                      2 / 2
+;; - cals-per-min                    2 / 2
+;; - add-activities                  2 / 2
+;; - active?                         2 / 2
+;; - as-good?                        2 / 2
+
+;; problem 4
+;; - value-at                        3 / 3
+;; - to-string                       4 / 4
+;; - scale                           2 / 2
+;; - integral                        3 / 3
+;; - discriminant                    2 / 3
+;; - num-real-roots                  4 / 4
+;; - has-real-roots?                 2 / 2
+;; - intersect?                      5 / 5
+;; - derivative                      3 / 3
+
+;; === style ===
+
+;; code layout                       8 / 8
+;; identifiers are well named        5 / 6
+;; program decomposition (helpers)   4 / 4
+
+;; contracts (type ascriptions)      8 / 8
+;; well-written purposes             6 / 6
+;; adequate tests                    4 / 6
+
+;; clarity (clear logic)             5 / 6
+
+;; svn used correctly                5 / 5
+
+;; _total-score_                   96 / 100
+
+;; graded by hli5
