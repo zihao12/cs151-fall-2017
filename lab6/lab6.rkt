@@ -51,13 +51,13 @@
 ;; produce an empty BST given an ordering function
 (define (make-empty func)
   (BST func 'E))
-;(check-expect (make-empty string<?) (cast (BST string<? 'E) (BST String)))
+(check-expect (BST-tree-data (make-empty string<?)) 'E)
 
 (: singleton : All (A) (Compare A) A -> (BST A))
 ;; produce a singleton BST given an ordering function and one item
 (define (singleton func root)
   (BST func (Nd root 1 'E 'E)))
-;(check-expect (singleton < 1) (BST < (Nd 1 1 'E 'E)))
+(check-expect (BST-tree-data (singleton < 1)) (Nd 1 1 'E 'E))
 
 (: intrees : All (A) A (Compare A) (BSTree A)-> (BSTree A))
 ;; insert item into bstree
