@@ -174,7 +174,6 @@
 
 ;; GRADER: You were supposed to test at least one day from each month. -1
 
-;; GRADER: Forgot to put (test) to run tests. -1
 
 
 
@@ -256,12 +255,12 @@
 
 ;; contracts (type ascriptions)       4 / 4
 ;; well-written purposes              3 / 4
-;; adequate tests                     6 / 8
+;; adequate tests                     7 / 8
 
 ;; clarity (clear logic)              8 / 8
 
 ;; svn used correctly                 2 / 2
 
-;; _total-score_                      77/80
+;; _total-score_                      78/80
 
 ;; graded by Anne Farrell
