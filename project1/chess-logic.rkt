@@ -171,6 +171,57 @@
 ;(define kingtest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'King 'White))))
 
 ;; ----------;;;---------------------------
+;;functions that trun string to board
+
+(: strings->board : (Listof String) -> Board)
+;;write down the board in strings
+;;Each character is either a hyphen (-)(an empty space), or a letter(piece)
+;;PRNBQK for Black pieces and prnbqk for white pieces; n for knight and k for king 
+(define (strings->board strs)
+  (cond
+    [(and (= (length strs) 8)
+          (andmap (λ ([s : String]) (= 8 (string-length s))) strs))
+     (map
+      (λ ([s : Char])
+        (match s
+          [#\P (Some (Piece 'Pawn 'Black))]
+          [#\R (Some (Piece 'Rook 'Black))]
+          [#\N (Some (Piece 'Knight 'Black))]
+          [#\B (Some (Piece 'Bishop 'Black))]
+          [#\Q (Some (Piece 'Queen 'Black))]
+          [#\K (Some (Piece 'King 'Black))]
+          [#\p (Some (Piece 'Pawn 'White))]
+          [#\r (Some (Piece 'Rook 'White))]
+          [#\n (Some (Piece 'Knight 'White))]
+          [#\b (Some (Piece 'Bishop 'White))]
+          [#\q (Some (Piece 'Queen 'White))]
+          [#\k (Some (Piece 'King 'White))]
+          [#\- 'None]))
+       (string->list
+        (foldl
+         string-append
+         ""
+         strs)))]
+    [else (error "wrong board")]))
+       
+(define teststrings
+   (list "RKN--P--"
+         "RKQNK---"
+         "----PPP-"
+         "RKN--P--"
+         "prkq----"
+         "pkqn----"
+         "--knbk--"
+         "-k-p-b-r"))
+
+;(check-expect (list-ref (strings->board teststrings) 0) 'None)
+;(check-expect (list-ref (strings->board teststrings) 1) (Some (Piece 'King 'White)))
+;(check-expect (list-ref (strings->board teststrings) 11) (Some (Piece 'Knight 'White)))
+;(check-expect (list-ref (strings->board teststrings) 42) 'None)
+;(check-expect (list-ref (strings->board teststrings) 34) (Some (Piece 'Knight 'Black)))
+
+
+;; ----------;;;---------------------------
 ;;functions that decide if a piece is at the edge
 (: right-edge? : Loc -> Boolean)
 ;; take in a location to see if it is the right edge of the board
@@ -257,12 +308,10 @@
   
 ;; ----------;;;---------------------------
 
-(: one-step-for-some :  ChessGame Loc Player PieceType Integer (Loc -> Boolean) -> (Listof Move))
+(: one-step-for-some :  Board Loc Player PieceType Integer (Loc -> Boolean) -> (Listof Move))
 ;; for a given piece in a given direction (Integer) for some type (King Rook Bishop Queen) except knight and Pawn
 ;; in one step, return a list of a single move if there is one; else 'None
-(define (one-step-for-some g loc color type dir some-edge?)
-  (match g
-    [(ChessGame b _)
+(define (one-step-for-some b loc color type dir some-edge?)
       (if (some-edge? loc)
           '()
           (match (list-ref b (+ (loc->boaref loc) dir))
@@ -278,41 +327,48 @@
                  (if (symbol=? color2 color)
                      '()
                      (list (Move loc (boaref->loc (+ (loc->boaref loc) dir))
-                           (Piece type color) (Some(Piece type2 color2)) 'None)))])]))]))
+                           (Piece type color) (Some(Piece type2 color2)) 'None)))])])))
 
-(: steps-for-some :  ChessGame Loc Player PieceType Integer (Loc -> Boolean) -> (Listof Move))
+
+             
+
+(: steps-for-some-problematic :  Board Loc Player PieceType Integer (Loc -> Boolean) -> (Listof Move))
+;;;; PROBLEMATIC for a given piece in a given direction (Integer) for some type (King Rook Bishop Queen) except knight and Pawn
+;; in one step, return a list of steps if there is one; else 'None
+(define (steps-for-some-problematic b loc color type dir some-edge?)       
+         (append
+          (one-step-for-some b loc color type dir some-edge?)
+          (match (one-step-for-some b loc color type dir some-edge?)
+            [(cons (Move _ _ _ 'None _)_)
+             (steps-for-some b
+                             (boaref->loc (+ (loc->boaref loc) dir))
+                             color type dir some-edge?)]     
+            [_ '()])))
+
+(: steps-for-some :  Board Loc Player PieceType Integer (Loc -> Boolean) -> (Listof Move))
 ;;;; for a given piece in a given direction (Integer) for some type (King Rook Bishop Queen) except knight and Pawn
 ;; in one step, return a list of steps if there is one; else 'None
-(define (steps-for-some g loc color type dir some-edge?)
-  (match g
-    [(ChessGame b _)
-     (append
-      (one-step-for-some g loc color type dir some-edge?)
-      (match (one-step-for-some g loc color type dir some-edge?)
-        [(cons (Move _ _ _ 'None _)_)
-         (steps-for-some g
-                      (boaref->loc (+ (loc->boaref loc) dir))
-                      color type dir some-edge?)]
-         [_ '()]))]))
-    
-
+(define (steps-for-some b loc color type dir some-edge?)    
+  (map
+  (λ ([mv : Move]) (Move loc (Move-dst mv) (Move-moved mv) (Move-captured mv) (Move-promote-to mv)))
+  (steps-for-some-problematic b loc color type dir some-edge?)))
 ;; ----------;;;---------------------------
 ;; King!!! 
-(: moves-king : ChessGame Loc Player -> (Listof Move))
+(: moves-king : Board Loc Player -> (Listof Move))
 ;;given a piece that has the piecetype King, decide the moves it can take
-(define (moves-king g loc color)
+(define (moves-king b loc color)
   (append
-   (one-step-for-some g loc color 'King 8 upper-edge?)
-   (one-step-for-some g loc color 'King -8 lower-edge?)
-   (one-step-for-some g loc color 'King -1 left-edge?)
-   (one-step-for-some g loc color 'King 1 right-edge?)
-   (one-step-for-some g loc color 'King 7
+   (one-step-for-some b loc color 'King 8 upper-edge?)
+   (one-step-for-some b loc color 'King -8 lower-edge?)
+   (one-step-for-some b loc color 'King -1 left-edge?)
+   (one-step-for-some b loc color 'King 1 right-edge?)
+   (one-step-for-some b loc color 'King 7
                                     leftorup-edge?)
-   (one-step-for-some g loc color 'King 9
+   (one-step-for-some b loc color 'King 9
                                     rightorup-edge?)
-   (one-step-for-some g loc color 'King 7
+   (one-step-for-some b loc color 'King 7
                                     rightorlow-edge?)
-   (one-step-for-some g loc color 'King -9
+   (one-step-for-some b loc color 'King -9
                                     leftorlow-edge?)))
       
 (define kingtest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'King 'White))))
@@ -321,7 +377,7 @@
           
 ;; ----------;;;---------------------------
 ;; Rook!
-(: moves-rook : ChessGame Loc Player -> (Listof Move))
+(: moves-rook : Board Loc Player -> (Listof Move))
 ;;given a piece that has the piecetype Rook, decide the moves it can take
 (define (moves-rook g loc color)
   (append
@@ -333,19 +389,19 @@
 
 ;; ----------;;;---------------------------
 ;; bishop
-(: moves-bishop : ChessGame Loc Player -> (Listof Move))
+(: moves-bishop : Board Loc Player -> (Listof Move))
 ;;given a piece that has the piecetype Rook, decide the moves it can take
-(define (moves-bishop g loc color)
+(define (moves-bishop b loc color)
   (append
-   (steps-for-some g loc color 'Bishop 7 leftorup-edge?)
-   (steps-for-some g loc color 'Bishop -7 leftorlow-edge?)
-   (steps-for-some g loc color 'Bishop 9 rightorup-edge?)
-   (steps-for-some g loc color 'Bishop -9 rightorlow-edge?)))
+   (steps-for-some b loc color 'Bishop 7 leftorup-edge?)
+   (steps-for-some b loc color 'Bishop -7 leftorlow-edge?)
+   (steps-for-some b loc color 'Bishop 9 rightorup-edge?)
+   (steps-for-some b loc color 'Bishop -9 rightorlow-edge?)))
 (define bishoptest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'Bishop 'White))))
 
 ;; ----------;;;---------------------------
 ;; queen
-(: moves-queen : ChessGame Loc Player -> (Listof Move))
+(: moves-queen : Board Loc Player -> (Listof Move))
 ;;given a piece that has the piecetype Rook, decide the moves it can take
 (define (moves-queen g loc color)
   (append
@@ -360,9 +416,9 @@
 (define queentest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'Queen 'White))))
 
 ;; ----------;;;---------------------------
-;; queen
-(: moves-knight : ChessGame Loc Player -> (Listof Move))
-;;given a piece that has the piecetype Rook, decide the moves it can take
+;; knight
+(: moves-knight : Board Loc Player -> (Listof Move))
+;;given a piece that has the piecetype Knight, decide the moves it can take
 (define (moves-knight g loc color)
   (append
    (one-step-for-some g loc color 'Knight 17 kight-edge1?)
@@ -375,5 +431,161 @@
    (one-step-for-some g loc color 'Knight 15 kight-edge8?)))
 (define knighttest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'Knight 'White))))
 (define knighttest2 (board-update starting-board (Loc 'D 5) (Some (Piece 'Knight 'White))))
+
+
+;; ----------;;;---------------------------
+;; pawns
+;(: moved? : Board Loc -> Boolean)
+;;;see if a piece at a given position has been moved before
+;(define (moved? g loc )
+;  (match g
+;    [(ChessGame _ hist)
+;     (local {(: hismoved? : (Listof Move) -> Boolean )
+;             (define (hismoved? moves)
+;               (match moves
+;                 ['() #f]
+;                 [(cons first rest) (or (loc=? loc (Move-src first)) (hismoved? rest))]))}
+;       (hismoved? hist))]))
+
+
+(: one-capture-for-pawn : Board Loc Player Integer (Loc -> Boolean) -> (Listof Move))
+;; list of moves for capture performed by pawn
+;;dir has something to do with player!!
+(define (one-capture-for-pawn b loc color dir some-edge?)
+     (if (some-edge? loc)
+          '()
+          (match (list-ref b (+ (loc->boaref loc) dir))
+            ['None '()]
+            [ (Some s)
+              (match (val-of (Some s))
+                [(Piece type2 color2)
+                 (if (symbol=? color2 color)
+                     '()
+                     (list (Move loc (boaref->loc (+ (loc->boaref loc) dir))
+                           (Piece 'Pawn color) (Some(Piece type2 color2)) 'None)))])])))
+(define pawntest1 (board-update starting-board (Loc 'D 3) (Some (Piece 'Knight 'Black))))
+(define pawntest2 (board-update starting-board (Loc 'D 3) (Some (Piece 'Knight 'White))))
+
+
+(: one-step-for-pawn :  Board Loc Player  Integer (Loc -> Boolean) -> (Listof Move))
+;; for a given piece in a given direction (Integer) for Pawn
+;; in one step, return a list of a single move if there is one; else 'None
+(define (one-step-for-pawn b loc color  dir some-edge?)
+      (if (some-edge? loc)
+          '()
+          (match (list-ref b (+ (loc->boaref loc) dir))
+            ['None (list
+                    (Move loc
+                          (boaref->loc (+ (loc->boaref loc) dir))
+                          (Piece 'Pawn color)
+                          'None
+                          'None))]
+            [ (Some s) '()])))
+
+(: moves-pawn : Board Loc Player -> (Listof Move))
+;;given a piece that has the piecetype Knight, decide the moves it can take
+(define (moves-pawn b loc color)
+  (if (symbol=? color 'White)
+    (append 
+     (one-step-for-pawn b loc color  8 upper-edge?)
+     (if (or (not (= (Loc-rank loc) 2)) (empty? (one-step-for-some b loc color 'Pawn 8 upper-edge?)))
+         '()
+         (map (λ ([mv : Move]) (Move loc (Move-dst mv) (Move-moved mv) (Move-captured mv) (Move-promote-to mv)))
+              (one-step-for-some b (boaref->loc (+ 8 (loc->boaref loc)))
+                            color 'Pawn 8 upper-edge?)))
+     (one-capture-for-pawn b loc color 7 leftorup-edge?)
+     (one-capture-for-pawn b loc color 9 rightorup-edge?))
+    (append 
+     (one-step-for-pawn b loc color  -8 lower-edge?)
+     (if (or (not (= (Loc-rank loc) 7)) (empty? (one-step-for-some b loc color 'Pawn -8 lower-edge?)))
+         '()
+         (map (λ ([mv : Move]) (Move loc (Move-dst mv) (Move-moved mv) (Move-captured mv) (Move-promote-to mv)))
+              (one-step-for-some b (boaref->loc (- (loc->boaref loc) 8))
+                            color 'Pawn 8 lower-edge?)))         
+     (one-capture-for-pawn b loc color -7 leftorlow-edge?)
+     (one-capture-for-pawn b loc color -9 rightorlow-edge?))))
+
+
+;; ----------;;;---------------------------
+(: moves-piece-incomplete : Board Loc -> (Listof Move))
+;;given a location on a given board, produce its possible moves
+(define (moves-piece-incomplete b loc)
+     (match (list-ref b (loc->boaref loc))
+       ['None '()]
+       [(Some (Piece type color))
+        (match type
+          ['King (moves-king b loc color)]
+          ['Queen (moves-queen b loc color)]
+          ['Rook (moves-rook b loc color)]
+          ['Bishop (moves-bishop b loc color)]
+          ['Knight (moves-knight b loc color)]
+          ['Pawn (moves-pawn b loc color)]
+          )]))
+       
+;; ----------;;;---------------------------
+(: whose-turn : (Listof Move) -> Player)
+;;see whose turn it is from history
+(define (whose-turn moves)
+  (match moves
+    ['() 'White]
+    [_
+     (match (last moves)
+       [(Move _ _ (Piece _ color) _ _)
+        (if (symbol=? color 'White) 'Black 'White)])]))
+
+;(: in-check? : ChessGame -> Boolean)
+;;returns true, if and only if the player whose turn it is is in check,
+;;according to the rules of chess and the current position of pieces on the board.
+;;Do not take castling, en passant, or promotion into account.
+;(define (in-check? g)
+;  (match h
+;    (ChessGame b hist)
+;    (if (symbol=?  (whose-turn hist) 'White)
+;        (foldl
+;         (λ ([ ])
+;    
+      
+(: moves-player-incomplete : Board Integer Player -> (Listof Move))
+;;generate the (incomplete) list of all possible moves of a given player
+;;
+(define (moves-player-incomplete b n color)
+  (match n
+    [0 '()]
+    [_ 
+    (match b
+      [(cons f r)
+       (append
+        (match f
+          ['None '()]
+          [(Some (Piece _ color2))
+           (if (symbol=? color2 color)
+               (moves-piece-incomplete b (boaref->loc (- 64 n)))
+               '())])
+        (moves-player-incomplete b (sub1 n) color))])]))
+        
+               
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (test)
