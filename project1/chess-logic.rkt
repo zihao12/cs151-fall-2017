@@ -783,12 +783,4 @@
           (append hist (list mv)))])
       (error "illegal move!")))
 
-
-
-
-
-
-
-
-
 (test)
