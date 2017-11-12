@@ -7,25 +7,14 @@
 (require "optional.rkt")
 (require "loc.rkt")
 (require "chess-logic.rkt")
-(require "background.rkt")
 ;; ==== ==== ==== ====
 ;; external interface
 
-;; (provide board->image ; : Board -> Image）
+(provide board->image  : Board -> Image)
 
-;♔♕♖♗♘♙♚♛♜♝♞♟
 (define size-of-square 32)
-(define size-of-board 256)
-(define test-board (list (Some (Piece 'Pawn  'White)) (Some (Piece 'Pawn  'White))
-                         'None (Some (Piece  'Rook 'Black))
-                         'None 'None 'None 'None 'None))
-                         
-
-  
-(define background (alt-shaded-rows 8 8 size-of-square "beige" "brown"))
-(define backrow1 (alt-shaded-row  8 size-of-square "beige" "brown"))
-(define backrow2 (alt-shaded-row  8 size-of-square "brown" "beige"))
-
+(define size-of-backgroundsquare 50)
+ 
 ;;'Pawn 'Bishop 'Knight 'Rook 'King 'Queen
 (: square->image : Square -> Image)
 ;; turn piecetype to its corresponding image
@@ -73,23 +62,40 @@
     ['() empty-image]
     [(cons f r)
      (beside
-      (overlay (square->image f) (square size-of-square "solid" c1))
+      (overlay (square->image f) (square size-of-backgroundsquare "solid" c1))
       (row-of-image (sub1 n) r c2 c1))]))
-;;(row-of-image 8 starting-board "beige" "brown")
-    
-;(define testrow (row-of-image 8 starting-board))
-    
-                           
-(: board->image : Board Image-Color Image-Color -> Image)
+
+(: board->image0 : Board Image-Color Image-Color -> Image)
 ;; draw a board with pieces
-(define (board->image b c1 c2)
+(define (board->image0 b c1 c2)
    (match b
     ['() empty-image]
     [_
      (above 
-      (board->image (drop 8 b) c1 c2)
+      (board->image0 (drop 8 b) c1 c2)
       (if (even? (quotient (length b) 8))
           (row-of-image 8 b c1 c2)
           (row-of-image 8 b c2 c1)))]))
-;(board->image starting-board)   
+
+(: board->image : Board -> Image)
+;; draw a board with pieces
+(define (board->image b)
+  (board->image0 b "beige" "brown"))
+
+;(board->image starting-board)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
