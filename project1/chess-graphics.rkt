@@ -16,26 +16,30 @@
 ;♔♕♖♗♘♙♚♛♜♝♞♟
 (define size-of-square 32)
 (define size-of-board 256)
-(define test-board (list (Some (Piece 'Pawn  'White)) 'None (Some (Piece  'Rook 'Black))
+(define test-board (list (Some (Piece 'Pawn  'White)) (Some (Piece 'Pawn  'White))
+                         'None (Some (Piece  'Rook 'Black))
                          'None 'None 'None 'None 'None))
                          
 
   
-(define background (alt-shaded-rows 8 8 56 "beige" "brown"))
+(define background (alt-shaded-rows 8 8 size-of-square "beige" "brown"))
+(define backrow1 (alt-shaded-row  8 size-of-square "beige" "brown"))
+(define backrow2 (alt-shaded-row  8 size-of-square "brown" "beige"))
+
 ;;'Pawn 'Bishop 'Knight 'Rook 'King 'Queen
 (: square->image : Square -> Image)
 ;; turn piecetype to its corresponding image
 (define (square->image s)
   (match s
-    ['None empty-image]
+    ['None (text "" size-of-square "white")]
     [_
      (match (val-of s)
-       [ (Piece 'Pawn  'White) (text "♙" size-of-square "white")]
-       [ (Piece  'Bishop 'White) (text "♗" size-of-square "white")]
-       [ (Piece  'Knight 'White) (text "♘" size-of-square "white")]
-       [ (Piece  'Rook 'White) (text "♖" size-of-square "white")]
-       [ (Piece  'King 'White) (text "♔" size-of-square "white")]
-       [ (Piece  'Queen'White) (text "♕" size-of-square "white")]
+       [ (Piece 'Pawn  'White) (text "♙" size-of-square "black")]
+       [ (Piece  'Bishop 'White) (text "♗" size-of-square "black")]
+       [ (Piece  'Knight 'White) (text "♘" size-of-square "black")]
+       [ (Piece  'Rook 'White) (text "♖" size-of-square "black")]
+       [ (Piece  'King 'White) (text "♔" size-of-square "black")]
+       [ (Piece  'Queen'White) (text "♕" size-of-square "black")]
        [ (Piece  'Pawn 'Black) (text "♟" size-of-square "black")]
        [ (Piece  'Bishop 'Black) (text "♝" size-of-square "black")]
        [ (Piece  'Knight 'Black) (text "♞" size-of-square "black")]
@@ -43,24 +47,49 @@
        [ (Piece  'King'Black) (text "♚" size-of-square "black")]
        [ (Piece  'Queen 'Black) (text "♛" size-of-square "black")])]))
 
-;(: row-of-board : Board Integer Image-Color Image-Color -> Image)
-;;; draw the k/8 th row of the board
-;(define (row-of-board b k c1 c2)
-;  (local
-;    {(define i (+ k 8))}
-;    (cond
-;      [(= k i) empty-image]
-;      [else (beside (overlay (square->image (list-ref b k))
-;                     (square size-of-square "solid" c1))
-;                    (row-of-board b (add1 k) c2 c1))])))
-;; Stupid DrRacket said index too largs!!!!
-                    
-              
+(: take : All(A) Integer (Listof A) -> (Listof A))
+;; take the first n elements of a given list
+(define (take n xs)
+  (match* (xs n)
+    [('() _) '()]
+    [(_ 0) '()]
+    [((cons first rest) n)
+     (append (list first) (take (sub1 n) rest))]))
+
+(: drop : All(A) Integer (Listof A) -> (Listof A))
+;; drop the first n elements of a given list
+(define (drop n xs)
+  (match* (xs n)
+    [('() _) '()]
+    [(_ 0) xs]
+    [((cons _ rest) n)
+     (drop (sub1 n) rest)]))
+
+(: row-of-image : Integer Board Image-Color Image-Color -> Image)
+;; take in board(considered list of squares) and a number n
+;;produce the image of first n elements in a row
+(define (row-of-image n b c1 c2)
+  (match (take n b)
+    ['() empty-image]
+    [(cons f r)
+     (beside
+      (overlay (square->image f) (square size-of-square "solid" c1))
+      (row-of-image (sub1 n) r c2 c1))]))
+;;(row-of-image 8 starting-board "beige" "brown")
+    
+;(define testrow (row-of-image 8 starting-board))
     
                            
-;(: board->image : Board -> Image)
-;;; draw a board with pieces
-;(define (board->image b)
-;  (match b
-;    ['() background]
-;    [ _ 
+(: board->image : Board Image-Color Image-Color -> Image)
+;; draw a board with pieces
+(define (board->image b c1 c2)
+   (match b
+    ['() empty-image]
+    [_
+     (above 
+      (board->image (drop 8 b) c1 c2)
+      (if (even? (quotient (length b) 8))
+          (row-of-image 8 b c1 c2)
+          (row-of-image 8 b c2 c1)))]))
+;(board->image starting-board)   
+  
