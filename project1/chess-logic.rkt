@@ -19,18 +19,18 @@
          (struct-out Move)
          PromoteTo
          (struct-out ChessGame)
-         ;; starting-board ; : Board
-         ;; new-game       ; : ChessGame
-         ;; board-ref      ; : Board Loc -> Square
-         ;; board-update   ; : Board Loc Square -> Board
-         ;; in-check?      ; : ChessGame -> Boolean
-         ;; legal-move?    ; : ChessGame Move -> Boolean
-         ;; moves-piece    ; : ChessGame Loc -> (Listof Move)
-         ;; moves-player   ; : ChessGame -> (Listof Move)
-         ;; checkmate?     ; : ChessGame -> Boolean
-         ;; stalemate?     ; : ChessGame -> Boolean
-         ;; apply-move     ; : ChessGame Move -> ChessGame
-         ;; strings->board ; : (Listof String) -> Board
+          starting-board ; : Board
+          new-game       ; : ChessGame
+          board-ref      ; : Board Loc -> Square
+          board-update   ; : Board Loc Square -> Board
+          in-check?      ; : ChessGame -> Boolean
+          legal-move?    ; : ChessGame Move -> Boolean
+          moves-piece    ; : ChessGame Loc -> (Listof Move)
+          moves-player   ; : ChessGame -> (Listof Move)
+          checkmate?     ; : ChessGame -> Boolean
+          stalemate?     ; : ChessGame -> Boolean
+          apply-move     ; : ChessGame Move -> ChessGame
+          strings->board ; : (Listof String) -> Board
          )
 
 ;; ==== ==== ==== ====
@@ -66,6 +66,7 @@
   ([board : Board]
    [history : (Listof Move)]))
 
+(define whitemove1 (list (Move (Loc 'F 2) (Loc 'F 3) (Piece 'Pawn 'White) 'None 'None)))
 ;;name the piece as pieceij
 ;;i = 1 for white and i = 2 for black
 ;; j = 1,2,3,4,5,6 for King,Queen,Bishop,Knight,Rook,Pawn respectively 
@@ -355,6 +356,10 @@
   (λ ([mv : Move]) (Move loc (Move-dst mv) (Move-moved mv) (Move-captured mv) (Move-promote-to mv)))
   (steps-for-some-problematic b loc color type dir some-edge?)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; for the following functions that output a list of moves
+;; I performed the eyeball test: i define teh test board and print the answers out and see if they are correct as
+;;it is too time-consuming to write all down
 ;; ----------;;;---------------------------
 ;; King!!! 
 (: moves-king : Board Loc Player -> (Listof Move))
@@ -376,9 +381,7 @@
       
 (define kingtest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'King 'White))))
 (define kingtest2 (board-update kingtest1 (Loc 'D 5) (Some (Piece 'Queen 'Black))))
-(define kingtest3 (board-update kingtest1 (Loc 'D 5) (Some (Piece 'Queen 'White))))
-
-          
+(define kingtest3 (board-update kingtest1 (Loc 'D 5) (Some (Piece 'Queen 'White))))     
 ;; ----------;;;---------------------------
 ;; Rook!
 (: moves-rook : Board Loc Player -> (Listof Move))
@@ -435,8 +438,8 @@
    (one-step-for-some g loc color 'Knight 15 kight-edge8?)))
 (define knighttest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'Knight 'White))))
 (define knighttest2 (board-update starting-board (Loc 'D 5) (Some (Piece 'Knight 'White))))
-
-
+(check-expect (length (moves-knight knighttest1 (Loc 'D 4) 'White)) 6)
+(check-expect (length (moves-knight knighttest2 (Loc 'D 4) 'White)) 6)
 ;; ----------;;;---------------------------
 ;; moves-pawn
 (: moves-pawn : Board Loc Player -> (Listof Move))
@@ -526,8 +529,6 @@
           )]))
        
 ;; ----------;;;---------------------------
-
-
 (: whose-turn : (Listof Move) -> Player)
 ;;see whose turn it is from history
 (define (whose-turn moves)
@@ -537,7 +538,13 @@
      (match (last moves)
        [(Move _ _ (Piece _ color) _ _)
         (if (symbol=? color 'White) 'Black 'White)])]))
+(check-expect (whose-turn '()) 'White)
+(check-expect (whose-turn (list (Move (Loc 'D 3) (Loc 'D 4) (Piece 'Pawn 'White)'None 'None)
+                                (Move (Loc 'D 7) (Loc 'D 6) (Piece 'Pawn 'Black) 'None 'None))) 'White)
+(check-expect (whose-turn (list (Move (Loc 'D 3) (Loc 'D 4) (Piece 'Pawn 'White)'None 'None)
+                                )) 'Black)
 
+              
 (: army-position : Board Player ->  (Listof Integer))
 ;; identify the positions of the entire army of a given player in the form of board reference
 (define (army-position b color)
@@ -552,8 +559,11 @@
              (list (- 63 (length rest)))
              '())])
       (army-position rest color))]))
+(check-expect (army-position testpawn 'White) (list 26 28 40))
 
 (: moves-player-incomplete : Board Player -> (Listof Move))
+;; show the moves of the player
+;; incomplete because it does not take out the leaves that expose the king to check
 (define (moves-player-incomplete b color)
   (foldr
    (inst append Move)
@@ -562,6 +572,7 @@
    (λ([n : Integer]) (moves-piece-incomplete b (boaref->loc n)))
    (army-position b color))
   ))
+
 ;; ----------;;;---------------------------
 ;;in-check?       
 (: in-check0? : Board Player -> Boolean)
@@ -596,13 +607,58 @@
                               "--------"
                               "----k---"
                               "----P---")))
+(define  inchecktest2 (strings->board
+                        (list "--------"
+                              "----K---"
+                              "----r---"
+                              "--------"
+                              "--------"
+                              "--------"
+                              "----k---"
+                              "----P---")))
+(check-expect (in-check0? inchecktest1 'White) #f)
+(check-expect (in-check0? inchecktest2 'White) #t)
+
 (: in-check? : ChessGame -> Boolean)
 ;; same as in-check0? except it takes in a ChessGame
 (define (in-check? g)
   (match g
     [(ChessGame b hist) (in-check0? b ((compose opposite-color whose-turn) hist))]))
+(check-expect (in-check? (ChessGame inchecktest1 whitemove1)) #f)
+(check-expect (in-check? (ChessGame inchecktest2 whitemove1)) #t)
 ;; ----------;;;---------------------------
 ;;legal-move?
+(: piece=? : Piece Piece -> Boolean)
+;; see if two pieces are the same
+(define (piece=? p1 p2)
+  (match* (p1 p2)
+          [((Piece type1 color1) (Piece type2 color2)) (and (symbol=? type1 type2) (symbol=? color1 color2))]))
+(check-expect (piece=? (Piece 'Queen 'White) (Piece 'Queen 'White)) #t)
+(check-expect (piece=? (Piece 'Queen 'Black) (Piece 'Queen 'White)) #f)
+(check-expect (piece=? (Piece 'Rook 'White) (Piece 'Queen 'White)) #f)
+
+(: move=? : Move Move -> Boolean)
+;; see if two moves are the same
+(define (move=? m1 m2)
+  (match* (m1 m2)
+    [((Move s1 d1 mved1 c1 pr1) (Move s2 d2 mved2 c2 pr2))
+     (and
+      (loc=? s1 s2)
+      (loc=? d1 d2)
+      (piece=? mved1 mved2)
+      (match* (c1 c2)
+        [('None 'None) #t]
+        [('None _) #f]
+        [(_ 'None) #f]
+        [((Some p1) (Some p2)) (piece=? p1 p2)])
+      (symbol=? (get-opt pr1 'None) (get-opt pr2 'None)))]))
+(check-expect (move=? (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)(Some (Piece 'Rook 'Black)) 'None)
+                      (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)(Some (Piece 'Rook 'Black)) 'None)) #t)
+        (check-expect (move=? (Move (Loc 'C 2) (Loc 'B 4)(Piece 'Queen 'White)(Some (Piece 'Rook 'Black)) 'None)
+                      (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)(Some (Piece 'Rook 'Black)) 'None)) #f)
+(check-expect (move=? (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)(Some (Piece 'Rook 'Black)) 'None)
+                      (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Rook 'White)(Some (Piece 'Rook 'Black)) 'None)) #f)
+        
 
 (: legal-move0? : Board Move Player -> Boolean)
 ;; see if a move is legal and get you out of check
@@ -613,13 +669,12 @@
      (and
       (ormap
        (λ ([vm : Move])
-         (loc=? (Move-dst vm) dst))
+         (move=?  mv vm))
        (moves-player-incomplete b color))
       (not (in-check0? (board-update
                    (board-update b dst (Some moved))
                    src 'None)(opposite-color color) )))]))
-       
-           
+                  
 (define checklegal (strings->board
                     (list "--------"
                           "--------"
@@ -651,12 +706,14 @@
                           "--------")))
 (check-expect (legal-move0? checklegal2 (Move (Loc 'C 3) (Loc 'C 8)(Piece 'Queen 'White)'None 'None)
                        'White) #t)
+
 (: legal-move? : ChessGame Move -> Boolean)
-;; same as legal-move0?
+;; the same as legal-move0
 (define (legal-move? g mv)
   (match g
     [(ChessGame b hist) (legal-move0? b mv (whose-turn hist))]))
-
+(check-expect (legal-move? (ChessGame checklegal '()) (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)'None 'None)
+                            ) #f)
 ;; ----------;;;---------------------------
 ;;moves-piece
 (: moves-piece0 : Board Loc Player -> (Listof Move))
@@ -670,20 +727,22 @@
         (not (in-check0? (board-update
                           (board-update b dst (Some moved))
                           src 'None)(opposite-color color)))]))
- ;  (λ ([vm : Move]) (legal-move0? b vm color)) 
    (moves-piece-incomplete b loc)))
-;(moves-piece0 checklegal (Loc 'C 3) 'White)
-;(moves-piece0 checklegal (Loc 'D 5) 'White)
+
+(check-expect (length (moves-piece0 checklegal (Loc 'C 3) 'White)) 0)
+(check-expect (length (moves-piece0 checklegal (Loc 'D 5) 'White)) 8)
 
 (: moves-piece : ChessGame Loc -> (Listof Move))
 ;; same as moves-piece0, except intake ChessGame
 (define (moves-piece g loc)
   (match g
     [(ChessGame b hist) (moves-piece0 b loc (whose-turn hist))]))
-
+(check-expect (length (moves-piece (ChessGame checklegal '()) (Loc 'C 3) )) 0)
 
 ;; ----------;;;---------------------------
 ;;moves-player
+;; for these two functions i performed the eyeball test: i print the ansers out and see if they are correct as
+;;it is too time-consuming to write all down
 
 (: moves-player0 : Board Player -> (Listof Move))
 ;;produce all possible legal moves a player can make
@@ -706,6 +765,7 @@
                           "--------"
                           "---k----"
                           "--------")))
+
 (: moves-player : ChessGame -> (Listof Move))
 ;;produce all possible legal moves a player can make
 (define (moves-player g)
@@ -722,23 +782,113 @@
    (in-check0? b (opposite-color color))
    (empty? (moves-player0 b color))))
 
-(define testcheckmate0 (strings->board
+(define anastasiamate (strings->board
                      (list
                           "--------"
+                          "----n-PK"
+                          "--------"
+                          "-------r"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (checkmate0? anastasiamate 'Black) #t)
+
+(define anderssenmate (strings->board
+                     (list
+                          "------Kr"
+                          "------p-"
+                          "-----k--"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (checkmate0? anderssenmate 'Black) #t)
+
+(define arabianmate (strings->board
+                     (list
+                          "-------K"
+                          "-------r"
+                          "-----n--"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (checkmate0? arabianmate 'Black) #t)
+
+(define bank-rankmate (strings->board
+                     (list
+                          "---r--K-"
+                          "-----PPP"
                           "--------"
                           "--------"
                           "--------"
                           "--------"
                           "--------"
+                          "--------")))
+(check-expect (checkmate0? bank-rankmate 'Black) #t)
+
+(define bishopandknightmate (strings->board
+                     (list
+                          "-------K"
                           "--------"
-                          "--Q-Q---")))
+                          "-----bkn"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (checkmate0? bishopandknightmate 'Black) #t)
+
+(define blackburnmate (strings->board
+                     (list
+                          "-----RK-"
+                          "-------b"
+                          "--------"
+                          "------n-"
+                          "--------"
+                          "--------"
+                          "-b------"
+                          "--------")))
+(check-expect (checkmate0? blackburnmate 'Black) #t)
+
+
+(define blindswine (strings->board
+                     (list
+                          "-----RK-"
+                          "------rr"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (checkmate0? blindswine 'Black) #t)
+
+(define retimate (strings->board
+                     (list
+                          "-NBb----"
+                          "-PK-----"
+                          "--P-----"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "---r---k")))
+(check-expect (checkmate0? retimate 'Black) #t)
+
+;;the examples are from wikipedia article "Checkmate Pattern"
+
+
 (: checkmate? : ChessGame -> Boolean)
 ;;return true if the specified player is in check and cannot get our of it
 (define (checkmate? g)
   (match g
     [(ChessGame b hist)
      (checkmate0? b (whose-turn hist))]))
-
+(check-expect (checkmate? (ChessGame retimate whitemove1)) #t)
 ;; ----------;;;---------------------------
 ;; stalemate?
 
@@ -749,17 +899,68 @@
   (and 
    (not (in-check0? b (opposite-color color)))
    (empty? (moves-player0 b color))))
-(define teststalemate0 (strings->board
+
+(define teststalemate1 (strings->board
+                     (list
+                          "-----K--"
+                          "-----p--"
+                          "-----k--"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (stalemate0? teststalemate1 'Black) #t)
+
+(define teststalemate2 (strings->board
+                     (list
+                          "KB-----r"
+                          "--------"
+                          "-k------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (stalemate0? teststalemate2 'Black) #t)
+
+(define teststalemate3 (strings->board
                      (list
                           "--------"
                           "--------"
                           "--------"
                           "--------"
                           "--------"
-                          "--q-----"
+                          "--k-----"
                           "-r------"
                           "K-------")))
-(check-expect (stalemate0? teststalemate0 'Black) #t)
+(check-expect (stalemate0? teststalemate3 'Black) #t)
+
+(define teststalemate4 (strings->board
+                     (list
+                          "--------"
+                          "--------"
+                          "--------"
+                          "------k-"
+                          "--------"
+                          "-q------"
+                          "P-------"
+                          "K-------")))
+(check-expect (stalemate0? teststalemate4 'Black) #t)
+
+(define teststalemate5 (strings->board
+                     (list
+                          "K-------"
+                          "p-------"
+                          "k-------"
+                          "--------"
+                          "-----b--"
+                          "--------"
+                          "--------"
+                          "--------")))
+(check-expect (stalemate0? teststalemate5 'Black) #t)
+
+;;the examples are from wikipedia article "Stalemate"
 
 (: stalemate? : ChessGame -> Boolean)
 ;; stalemate is when the player whose turn it is to move
@@ -768,6 +969,8 @@
   (match g
     [(ChessGame b hist)
      (stalemate0? b (whose-turn hist))]))
+(check-expect (stalemate? (ChessGame teststalemate4 whitemove1)) #t)
+;; ----------;;;---------------------------
 
 (: apply-move : ChessGame Move -> ChessGame)
 ;Make the specified move for the player whose turn it is,
@@ -782,5 +985,34 @@
                         src 'None)
           (append hist (list mv)))])
       (error "illegal move!")))
+(define testapplymove11 (strings->board
+                     (list
+                          "K-------"
+                          "p-------"
+                          "k-------"
+                          "-----Q--"
+                          "-----b--"
+                          "--------"
+                          "--------"
+                          "--------")))
+(define testapplymove12 (strings->board
+                     (list
+                          "K-------"
+                          "p-------"
+                          "k-------"
+                          "-----b--"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))
 
+(define move1 (Move (Loc 'F 4) (Loc 'F 5) (Piece 'Bishop 'White)
+                                                  (Some (Piece 'Queen 'Black)) 'None))
+(define move2 (Move (Loc 'F 4) (Loc 'A 8) (Piece 'Bishop 'White)
+                                                  (Some (Piece 'King 'Black)) 'None))
+(check-error (apply-move (ChessGame testapplymove11 '()) move1) "illegal move!")
+
+
+
+            
 (test)
