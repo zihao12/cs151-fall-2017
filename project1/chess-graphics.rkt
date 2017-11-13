@@ -80,7 +80,7 @@
 (: board->image : Board -> Image)
 ;; draw a board with pieces
 (define (board->image b)
-  (board->image0 b "beige" "brown"))
+  (board->image0 b  "brown" "beige"))
 
 ;(board->image starting-board)
 
