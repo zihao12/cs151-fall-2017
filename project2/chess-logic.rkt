@@ -1089,22 +1089,91 @@
           ((compose (cupdate dst (Some moved)) (cupdate src 'None)) b)]))
           
 
-;(: pro-or-pass-apply : Board Move -> Board)
-;;; apply the implicit effects of either promotion or en-passant
-;;; assume it is legal
-;(define (pro-or-pass-apply b mv)
-;  (match mv
-;        [(Move src dst mvd cap pro)
-;         (cond
-;           [(not (symbol=? (get-opt pro 'None) 'None))
-;            ((cupdate dst (Some (Piece (val-of pro) (Piece-color mvd)))) b)]
-;           [(not (symbol=? (get-opt (list-ref b (loc->boaref dst)) 'None)))
-;            ((cupdate (boaref->loc (+ (loc->boaref dst)
-;                                     (* (sgn (- (loc->boaref dst) (loc->boaref src))) 8)))
-;                     'None) b)]
-;;先要看是那个子 是不是passent。 脑子狐           
-;; curried 不需要用在update上 要用在后面的三次叠加上            
-              
+(: pro-apply : Board Move -> Board)
+;; apply the implicit effects of promotion 
+;; assume it is legal
+(define (pro-apply b mv)
+  (match mv
+        [(Move src dst mvd cap pro)
+           (if (symbol=? (get-opt pro 'None) 'None) b
+            ((cupdate dst (Some (Piece (val-of pro) (Piece-color mvd)))) b))]))
+           
+(: pas-apply : Board Move -> Board)
+;; apply the implicit effects of en-passent
+(define (pas-apply b mv)
+  (match mv
+    [(Move src dst (Piece 'Pawn c1) (Some (Piece 'Pawn c2)) _)
+       (match (list-ref b (loc->boaref dst))
+         ['None ((cupdate
+                 (boaref->loc (- (loc->boaref dst) (* (sgn (- (loc->boaref dst) (loc->boaref src))) 8))) 'None) b)]
+         [_ b])]
+    [_ b]))
+       
+         
+(define testpasapply (strings->board
+                     (list
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "----Pp--"
+                          "--------"
+                          "--------"
+                          "--------")))
+
+(define pasmv (Move (Loc 'E 4) (Loc 'F 3) (Piece 'Pawn 'Black) (Some (Piece 'Pawn 'White)) 'None))
+ ;;performed an eyeball test
+
+(: cas-apply : Board Move -> Board)
+;;apply the implicit effects of castling
+(define (cas-apply b mv)
+  (match mv
+    [(Move src dst (Piece 'King color) 'None 'None)
+     (cond
+       [(= 2 (- (loc->boaref dst) (loc->boaref src)))
+        ((compose
+          (cupdate (boaref->loc (add1 (loc->boaref dst))) 'None)
+          (cupdate (boaref->loc (sub1 (loc->boaref dst))) (Some (Piece 'Rook color)))) b)]
+       [(= -2 (- (loc->boaref dst) (loc->boaref src)))
+        ((compose
+          (cupdate (boaref->loc (sub1 (loc->boaref dst))) 'None)
+          (cupdate (boaref->loc (add1 (loc->boaref dst))) (Some (Piece 'Rook color)))) b)]
+       [else b])]))
+
+(: apply-move : ChessGame Move -> ChessGame)
+;; apply the move to chessgame
+(define (apply-move g mv)
+  (match g
+    [(ChessGame b hist)
+     (ChessGame
+      (cas-apply (pas-apply (pro-apply (normal-apply b mv) mv) mv) mv)
+      (append hist (list mv)))]))
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ;(: apply-move : ChessGame Move -> ChessGame)
 ;;; apply legal moves to the game
