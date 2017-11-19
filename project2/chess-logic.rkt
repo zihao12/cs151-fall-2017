@@ -5,33 +5,33 @@
 (require "../include/cs151-core.rkt")
 (require "../include/cs151-image.rkt")
 
-(require "optional.rkt")
-(require "loc.rkt")
+(require "../project1/optional.rkt")
+(require "../project1/loc.rkt")
 
 ;; ==== ==== ==== ====
 ;; external interface
 
-(provide PieceType
-         Player
-         (struct-out Piece)
-         Square
-         Board
-         (struct-out Move)
-         PromoteTo
-         (struct-out ChessGame)
-          starting-board ; : Board
-          new-game       ; : ChessGame
-          board-ref      ; : Board Loc -> Square
-          board-update   ; : Board Loc Square -> Board
-          in-check?      ; : ChessGame -> Boolean
-          legal-move?    ; : ChessGame Move -> Boolean
-          moves-piece    ; : ChessGame Loc -> (Listof Move)
-          moves-player   ; : ChessGame -> (Listof Move)
-          checkmate?     ; : ChessGame -> Boolean
-          stalemate?     ; : ChessGame -> Boolean
-          apply-move     ; : ChessGame Move -> ChessGame
-          strings->board ; : (Listof String) -> Board
-         )
+;(provide PieceType
+;         Player
+;         (struct-out Piece)
+;         Square
+;         Board
+;         (struct-out Move)
+;         PromoteTo
+;         (struct-out ChessGame)
+;          starting-board ; : Board
+;          new-game       ; : ChessGame
+;          board-ref      ; : Board Loc -> Square
+;          board-update   ; : Board Loc Square -> Board
+;          in-check?      ; : ChessGame -> Boolean
+;          legal-move?    ; : ChessGame Move -> Boolean
+;          moves-piece    ; : ChessGame Loc -> (Listof Move)
+;          moves-player   ; : ChessGame -> (Listof Move)
+;          checkmate?     ; : ChessGame -> Boolean
+;          stalemate?     ; : ChessGame -> Boolean
+;          apply-move     ; : ChessGame Move -> ChessGame
+;          strings->board ; : (Listof String) -> Board
+;         )
 
 ;; ==== ==== ==== ====
 ;; data definitions
@@ -226,6 +226,22 @@
   (if (symbol=? color 'White) 'Black 'White))
 (check-expect (opposite-color 'Black) 'White)
 (check-expect (opposite-color 'White) 'Black)
+
+(: whose-turn : (Listof Move) -> Player)
+;;see whose turn it is from history
+(define (whose-turn moves)
+  (match moves
+    ['() 'White]
+    [_
+     (match (last moves)
+       [(Move _ _ (Piece _ color) _ _)
+        (if (symbol=? color 'White) 'Black 'White)])]))
+(check-expect (whose-turn '()) 'White)
+(check-expect (whose-turn (list (Move (Loc 'D 3) (Loc 'D 4) (Piece 'Pawn 'White)'None 'None)
+                                (Move (Loc 'D 7) (Loc 'D 6) (Piece 'Pawn 'Black) 'None 'None))) 'White)
+(check-expect (whose-turn (list (Move (Loc 'D 3) (Loc 'D 4) (Piece 'Pawn 'White)'None 'None)
+                                )) 'Black)
+
 ;; ----------;;;---------------------------
 ;;functions that decide if a piece is at the edge
 (: right-edge? : Loc -> Boolean)
@@ -364,6 +380,7 @@
 ;; King!!! 
 (: moves-king : Board Loc Player -> (Listof Move))
 ;;given a piece that has the piecetype King, decide the moves it can take
+;; this is incomplete due to castling
 (define (moves-king b loc color)
   (append
    (one-step-for-some b loc color 'King 8 upper-edge?)
@@ -378,8 +395,7 @@
                       rightorlow-edge?)
    (one-step-for-some b loc color 'King -9
                       leftorlow-edge?)))
-      
-(define kingtest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'King 'White))))
+ (define kingtest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'King 'White))))
 (define kingtest2 (board-update kingtest1 (Loc 'D 5) (Some (Piece 'Queen 'Black))))
 (define kingtest3 (board-update kingtest1 (Loc 'D 5) (Some (Piece 'Queen 'White))))     
 ;; ----------;;;---------------------------
@@ -442,9 +458,9 @@
 (check-expect (length (moves-knight knighttest2 (Loc 'D 4) 'White)) 6)
 ;; ----------;;;---------------------------
 ;; moves-pawn
-(: moves-pawn : Board Loc Player -> (Listof Move))
+(: moves-pawn00 : Board Loc Player -> (Listof Move))
 ;;given a piece that has the piecetype Knight, decide the moves it can take
-(define (moves-pawn b loc color)
+(define (moves-pawn00 b loc color)
   (if (symbol=? color 'White)
        (if (< (loc->boaref loc)56)
            (local
@@ -477,14 +493,14 @@
            (local
              {(define mvup
              (match (list-ref b (- (loc->boaref loc) 8))
-             ['None (list (Move loc (boaref->loc (- (loc->boaref loc) 8)) (Piece 'Pawn 'White) 'None 'None))]
+             ['None (list (Move loc (boaref->loc (- (loc->boaref loc) 8)) (Piece 'Pawn 'Black) 'None 'None))]
              [_ '()]))}
              (append mvup
                      (if (or (empty? mvup) (not (= (Loc-rank loc) 7)) )
                      '()
                      (match (list-ref b (- (loc->boaref loc) 16))
                        ['None
-                        (list (Move loc (boaref->loc (- (loc->boaref loc) 16)) (Piece 'Pawn 'White) 'None 'None))]
+                        (list (Move loc (boaref->loc (- (loc->boaref loc) 16)) (Piece 'Pawn 'Black) 'None 'None))]
                        [_ '()]))
                      (if (left-edge? loc) '()
                          (match (list-ref b (- (loc->boaref loc) 9))
@@ -499,9 +515,82 @@
                                   (Piece 'Pawn 'Black) (Some (Piece type 'White)) 'None))]
                            [_ '()]))))
            '())))
-                        
-              
-                
+
+(: moves-pawn : Board Loc Player -> (Listof Move))
+;; add the rule of promotion to moves-pawn00
+(define (moves-pawn b loc color)
+  (foldl
+   (λ ([mv : Move] [mvs : (Listof Move)])
+     (match mv
+       [(Move s (Loc _ r) (Piece _ color) _ 'None)
+        (if (or (and (= r 8) (symbol=? color 'White)) (and (= r 1) (symbol=? color 'Black)))
+            (append (list 
+                     (Move s (Move-dst mv) (Move-moved mv) (Move-captured mv) (Some 'Queen))
+                     (Move s (Move-dst mv) (Move-moved mv) (Move-captured mv) (Some 'Knight))
+                     (Move s (Move-dst mv) (Move-moved mv) (Move-captured mv) (Some 'Rook))
+                     (Move s (Move-dst mv) (Move-moved mv) (Move-captured mv) (Some 'Bishop))) mvs)
+            (append (list mv) mvs))]))
+   '()
+   (moves-pawn00 b loc color)))
+         
+(define promotepawn1 (strings->board
+                    (list "---P-B--"
+                          "----p---"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------")))         
+(check-expect (length (moves-pawn promotepawn1 (Loc 'E 7) 'White)) 12)
+;;the 12 results are too lengthy to paste here; i have checked them myself
+
+
+(: en-passant :  ChessGame Loc -> (Listof Move))
+;; implement the additional rule for en-passant
+(define (en-passant g loc)
+  (match g
+    [(ChessGame b hist)
+     (match hist
+       ['() '()]
+       [_ 
+        (match (last hist)
+          [(Move src0 dst0 moved0 _ _)
+           (match moved0
+             [(Piece 'Pawn 'Black)
+              (if (= -16 (- (loc->boaref dst0)(loc->boaref src0)))
+                  (if (or (= (loc->boaref dst0) (add1 (loc->boaref loc)))
+                          (= (loc->boaref dst0) (sub1 (loc->boaref loc))))
+                      (list (Move loc (boaref->loc (+ (loc->boaref dst0) 8)) (Piece 'Pawn 'White)
+                                  (Some (Piece 'Pawn 'Black)) 'None))
+                      '())'())]
+             [(Piece 'Pawn 'White)
+              (if (= 16 (- (loc->boaref dst0)(loc->boaref src0)))
+                  (if (or (= (loc->boaref dst0) (add1 (loc->boaref loc)))
+                          (= (loc->boaref dst0) (sub1 (loc->boaref loc))))
+                      (list (Move loc (boaref->loc (+ (loc->boaref src0) 8)) (Piece 'Pawn 'Black)
+                                  (Some (Piece 'Pawn 'White)) 'None))
+                      '())'())]
+             [_ '()])])])]))
+          
+(define en-passant1 (strings->board
+                    (list "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "------Pp"
+                          "--------"
+                          "--------"
+                          "--------")))
+(define en-hist1 (list (Move (Loc 'H 2) (Loc 'H 4) (Piece 'Pawn 'White) 'None 'None)))
+(check-expect (en-passant (ChessGame en-passant1 en-hist1) (Loc 'G 4))
+              (list
+               (Move
+                (Loc 'G 4)
+                (Loc 'H 3)
+                (Piece 'Pawn 'Black)
+                (Some (Piece 'Pawn 'White))
+                'None)))
 
 (define testpawn (strings->board
                     (list "--------"
@@ -529,22 +618,9 @@
           )]))
        
 ;; ----------;;;---------------------------
-(: whose-turn : (Listof Move) -> Player)
-;;see whose turn it is from history
-(define (whose-turn moves)
-  (match moves
-    ['() 'White]
-    [_
-     (match (last moves)
-       [(Move _ _ (Piece _ color) _ _)
-        (if (symbol=? color 'White) 'Black 'White)])]))
-(check-expect (whose-turn '()) 'White)
-(check-expect (whose-turn (list (Move (Loc 'D 3) (Loc 'D 4) (Piece 'Pawn 'White)'None 'None)
-                                (Move (Loc 'D 7) (Loc 'D 6) (Piece 'Pawn 'Black) 'None 'None))) 'White)
-(check-expect (whose-turn (list (Move (Loc 'D 3) (Loc 'D 4) (Piece 'Pawn 'White)'None 'None)
-                                )) 'Black)
 
-              
+ ;; ----------;;;---------------------------
+;;in-check?                   
 (: army-position : Board Player ->  (Listof Integer))
 ;; identify the positions of the entire army of a given player in the form of board reference
 (define (army-position b color)
@@ -564,6 +640,8 @@
 (: moves-player-incomplete : Board Player -> (Listof Move))
 ;; show the moves of the player
 ;; incomplete because it does not take out the leaves that expose the king to check
+;; more so considering the three additions
+;;but still useful for in-check
 (define (moves-player-incomplete b color)
   (foldr
    (inst append Move)
@@ -573,8 +651,7 @@
    (army-position b color))
   ))
 
-;; ----------;;;---------------------------
-;;in-check?       
+ 
 (: in-check0? : Board Player -> Boolean)
 ;prototype for in-check?
 ;Do not take castling, en passant, or promotion into account
@@ -626,6 +703,139 @@
     [(ChessGame b hist) (in-check0? b ((compose opposite-color whose-turn) hist))]))
 (check-expect (in-check? (ChessGame inchecktest1 whitemove1)) #f)
 (check-expect (in-check? (ChessGame inchecktest2 whitemove1)) #t)
+
+;; ----------;;;---------------------------
+;; moves-piece complete
+;; first, implement castling
+
+(: empty-neighborhood? : Board Loc Integer -> Boolean)
+;;see if the ajacent squares are empty
+;;ex: (empty-neighborhood? b loc -1) return whether its right eighbo is empty
+(define (empty-neighborhood? b loc n)
+  (match (list-ref b (+ n (loc->boaref loc)))
+    ['None #t]
+    [_ #f]))
+
+
+(: castling : ChessGame Loc -> (Listof Move))
+;; add the possible moves to king due to castling
+;; loc is the location of the king
+(define (castling g loc)
+  (match g
+    [(ChessGame b hist)
+     (if
+      (ormap
+       (λ ([mv : Move])
+         (match (Move-moved mv)
+           [(Piece 'King color) (symbol=? color (whose-turn hist))]            
+           [_ #f])) hist)
+      '()
+      (append
+       (if
+         (not (ormap
+                (λ ([mv : Move])
+                  (or (loc=? (boaref->loc (- (loc->boaref loc) 4)) (Move-src mv))
+                       (loc=? (boaref->loc (- (loc->boaref loc) 4)) (Move-dst mv)))) hist));;see if the rooks(if the loc is indeed an unmoved king)            
+         (if (and (empty-neighborhood? b loc -1)
+                  (empty-neighborhood? b loc -2)
+                  (empty-neighborhood? b loc -3)
+                  (not (in-check0? b (opposite-color (whose-turn hist)) ))
+                  (not (in-check0? (board-update b (boaref->loc (- (loc->boaref loc) 1))
+                                                 (Some (Piece 'King (whose-turn hist))))
+                                   (opposite-color (whose-turn hist))))
+                  (not (in-check0? (board-update b (boaref->loc (- (loc->boaref loc) 2))
+                                                 (Some (Piece 'King (whose-turn hist))))
+                                   (opposite-color (whose-turn hist)))))
+              (list (Move loc (boaref->loc (- (loc->boaref loc) 2)) (Piece 'King (whose-turn hist)) 'None 'None))
+              '()) '())
+          (if
+           (not (ormap
+                 (λ ([mv : Move])
+                   (or (loc=? (boaref->loc (+ (loc->boaref loc) 3)) (Move-src mv))
+                        (loc=? (boaref->loc (+ (loc->boaref loc) 3)) (Move-dst mv)))) hist))
+           (if (and (empty-neighborhood? b loc 1)
+                    (empty-neighborhood? b loc 2)                 
+                    (not (in-check0? b (opposite-color (whose-turn hist))))
+                    (not (in-check0? (board-update b (boaref->loc (+ (loc->boaref loc) 1))
+                                                   (Some (Piece 'King (whose-turn hist))))
+                                     (opposite-color (whose-turn hist))))
+                    (not (in-check0? (board-update b (boaref->loc (+ (loc->boaref loc) 2))
+                                                   (Some (Piece 'King (whose-turn hist))))
+                                     (opposite-color (whose-turn hist)))))                  
+             (list (Move loc (boaref->loc (+ (loc->boaref loc) 2)) (Piece 'King (whose-turn hist)) 'None 'None))
+             '()) '())))]))
+
+(define  testcastling1 (strings->board
+                        (list "--------"
+                              "--------"
+                              "--K-----"
+                              "--------"
+                              "--------"
+                              "--------"
+                              "--------"
+                              "r---k--r")))                  
+(check-expect  (length (castling (ChessGame testcastling1 '()) (Loc 'E 1))) 2)
+(check-expect  (length (castling (ChessGame testcastling1
+                                            (list
+                                             (Move (Loc 'A 7) (Loc 'A 1) (Piece 'Rook 'White) 'None 'None)
+                                             (Move (Loc 'B 7) (Loc 'B 6) (Piece 'King 'Black) 'None 'None)))
+                                 (Loc 'E 1))) 1)
+(define  testcastling2 (strings->board
+                        (list "--------"
+                              "--------"
+                              "--K-----"
+                              "--------"
+                              "--------"
+                              "--------"
+                              "----R---"
+                              "r---k--r")))
+(check-expect (castling (ChessGame testcastling2 '()) (Loc 'E 1)) '())
+
+(define  testcastling3 (strings->board
+                        (list "--------"
+                              "--------"
+                              "--K-----"
+                              "--------"
+                              "--------"
+                              "--------"
+                              "---R----"
+                              "r---k--r")))
+(check-expect (length (castling (ChessGame testcastling3 '()) (Loc 'E 1))) 1)
+
+(define  testcastling4 (strings->board
+                        (list "--------"
+                              "--------"
+                              "--K-----"
+                              "--------"
+                              "--------"
+                              "--------"
+                              "--R-----"
+                              "r---k--r")))
+(check-expect (length (castling (ChessGame testcastling4 '()) (Loc 'E 1))) 1)
+
+( : moves-piece : ChessGame Loc -> (Listof Move))
+;;produce all possible moves of a given loc
+(define (moves-piece g loc)
+  (match g
+    [(ChessGame b hist)
+     (append
+      (filter
+       (λ ([vm : Move])
+         (match vm
+           [(Move src dst moved _ _)
+            (not (in-check0? (board-update
+                              (board-update b dst (Some moved))
+                              src 'None)(opposite-color (whose-turn hist))))]))
+       (moves-piece-incomplete b loc))
+      (match (list-ref b (loc->boaref loc))
+        [(Some (Piece 'Pawn _))
+         (en-passant g loc)]
+        [_ '()])
+     (match (list-ref b (loc->boaref loc))
+        [(Some (Piece 'King _))
+         (castling g loc)]
+        [_ '()]))]))
+        
 ;; ----------;;;---------------------------
 ;;legal-move?
 (: piece=? : Piece Piece -> Boolean)
@@ -659,128 +869,41 @@
 (check-expect (move=? (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)(Some (Piece 'Rook 'Black)) 'None)
                       (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Rook 'White)(Some (Piece 'Rook 'Black)) 'None)) #f)
         
-
-(: legal-move0? : Board Move Player -> Boolean)
-;; see if a move is legal and get you out of check
-;; assume that the the consequence of the move is right: moved is right and captured is right if there is one
-(define (legal-move0? b mv color)
-  (match mv
-    [(Move src dst moved captured promoto-to)
-     (and
-      (ormap
-       (λ ([vm : Move])
-         (move=?  mv vm))
-       (moves-player-incomplete b color))
-      (not (in-check0? (board-update
-                   (board-update b dst (Some moved))
-                   src 'None)(opposite-color color) )))]))
-                  
-(define checklegal (strings->board
-                    (list "--------"
-                          "--------"
-                          "----P---"
-                          "---k----"
-                          "--------"
-                          "--q-----"
-                          "--------"
-                          "--------")))
-
-(check-expect (legal-move0? checklegal (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)'None 'None)
-                            'White) #f)
-(check-expect (legal-move0? checklegal (Move (Loc 'C 3) (Loc 'A 4)(Piece 'Queen 'White)'None 'None)
-                            'White) #f)
-(check-expect (legal-move0? checklegal (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)'None 'None)
-                            'White) #f)
-(check-expect (legal-move0? checklegal (Move (Loc 'D 5) (Loc 'C 4)(Piece 'King 'White)'None 'None)
-                            'White) #t)
-(check-expect (legal-move0? checklegal (Move (Loc 'D 5) (Loc 'E 5)(Piece 'King 'White)'None 'None)
-                            'White) #t)
-(define checklegal2 (strings->board
-                    (list "--------"
-                          "--------"
-                          "----R---"
-                          "--------"
-                          "--------"
-                          "--q-----"
-                          "--k-----"
-                          "--------")))
-(check-expect (legal-move0? checklegal2 (Move (Loc 'C 3) (Loc 'C 8)(Piece 'Queen 'White)'None 'None)
-                       'White) #t)
-
 (: legal-move? : ChessGame Move -> Boolean)
-;; the same as legal-move0
+;; see if a move if legal given a game
 (define (legal-move? g mv)
-  (match g
-    [(ChessGame b hist) (legal-move0? b mv (whose-turn hist))]))
-(check-expect (legal-move? (ChessGame checklegal '()) (Move (Loc 'C 3) (Loc 'B 4)(Piece 'Queen 'White)'None 'None)
-                            ) #f)
-;; ----------;;;---------------------------
-;;moves-piece
-(: moves-piece0 : Board Loc Player -> (Listof Move))
-;;Given a game and a particular piece (identified by its location),
-;;give a list of moves that can legally be made with that piece. If none, return the empty list.
-(define (moves-piece0 b loc color)
-  (filter
-   (λ ([vm : Move])
-     (match vm
-       [(Move src dst moved _ _)
-        (not (in-check0? (board-update
-                          (board-update b dst (Some moved))
-                          src 'None)(opposite-color color)))]))
-   (moves-piece-incomplete b loc)))
-
-(check-expect (length (moves-piece0 checklegal (Loc 'C 3) 'White)) 0)
-(check-expect (length (moves-piece0 checklegal (Loc 'D 5) 'White)) 8)
-
-(: moves-piece : ChessGame Loc -> (Listof Move))
-;; same as moves-piece0, except intake ChessGame
-(define (moves-piece g loc)
-  (match g
-    [(ChessGame b hist) (moves-piece0 b loc (whose-turn hist))]))
-(check-expect (length (moves-piece (ChessGame checklegal '()) (Loc 'C 3) )) 0)
+  (match mv
+    [(Move src dst mvd cap pro)
+     (ormap
+      (λ ([vm : Move]) (move=? vm mv))
+      (moves-piece g src))]))
 
 ;; ----------;;;---------------------------
 ;;moves-player
-;; for these two functions i performed the eyeball test: i print the ansers out and see if they are correct as
-;;it is too time-consuming to write all down
-
-(: moves-player0 : Board Player -> (Listof Move))
-;;produce all possible legal moves a player can make
-(define (moves-player0 b color)
-  (filter
-   (λ ([vm : Move])
-     (match vm
-       [(Move src dst moved _ _)
-        (not (in-check0? (board-update
-                          (board-update b dst (Some moved))
-                          src 'None)(opposite-color color)))]))
-   (moves-player-incomplete b color)))
-(define testplayer1 (strings->board
-                     (list
-                          "--------"
-                          "--------"
-                          "--------"
-                          "--------"
-                          "-----P--"
-                          "--------"
-                          "---k----"
-                          "--------")))
-
 (: moves-player : ChessGame -> (Listof Move))
-;;produce all possible legal moves a player can make
+;; produce the moves of the player whose turn is to play
 (define (moves-player g)
   (match g
     [(ChessGame b hist)
-     (moves-player0 b (whose-turn hist))]))
+     (foldr
+      (inst append Move)
+      '()
+      (map
+       (λ ([n : Integer]) (moves-piece g (boaref->loc n)))
+       (army-position b (whose-turn hist))))]))
 
 ;; ----------;;;---------------------------
 ;;checkmate?
-(: checkmate0? : Board Player -> Boolean)
+(: checkmate? : ChessGame -> Boolean)
 ;;return true if the specified player is in check and cannot get our of it
-(define (checkmate0? b color)
-  (and
-   (in-check0? b (opposite-color color))
-   (empty? (moves-player0 b color))))
+(define (checkmate? g)
+  (and (in-check? g)
+       (empty? (moves-player g))))
+
+(define rw (Move (Loc 'A 2) (Loc 'A 4) (Piece 'Pawn 'White) 'None 'None))
+(define rb (Move (Loc 'A 7) (Loc 'A 5) (Piece 'Pawn 'White) 'None 'None))
+(define wkm (Move (Loc 'E 1) (Loc 'F 1) (Piece 'King 'White) 'None 'None))
+(define bkm (Move (Loc 'E 8) (Loc 'F 8) (Piece 'King 'Black) 'None 'None))
 
 (define anastasiamate (strings->board
                      (list
@@ -792,7 +915,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (checkmate0? anastasiamate 'Black) #t)
+(check-expect (checkmate? (ChessGame anastasiamate (list rw))) #t)
 
 (define anderssenmate (strings->board
                      (list
@@ -804,7 +927,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (checkmate0? anderssenmate 'Black) #t)
+(check-expect (checkmate? (ChessGame anderssenmate (list rw bkm wkm))) #t)
 
 (define arabianmate (strings->board
                      (list
@@ -816,7 +939,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (checkmate0? arabianmate 'Black) #t)
+(check-expect (checkmate? (ChessGame arabianmate (list rw bkm wkm))) #t)
 
 (define bank-rankmate (strings->board
                      (list
@@ -828,7 +951,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (checkmate0? bank-rankmate 'Black) #t)
+(check-expect (checkmate? (ChessGame bank-rankmate (list rw bkm wkm))) #t)
 
 (define bishopandknightmate (strings->board
                      (list
@@ -840,7 +963,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (checkmate0? bishopandknightmate 'Black) #t)
+(check-expect (checkmate? (ChessGame bishopandknightmate (list rw bkm wkm))) #t)
 
 (define blackburnmate (strings->board
                      (list
@@ -852,7 +975,7 @@
                           "--------"
                           "-b------"
                           "--------")))
-(check-expect (checkmate0? blackburnmate 'Black) #t)
+(check-expect (checkmate? (ChessGame blackburnmate (list rw bkm wkm))) #t)
 
 
 (define blindswine (strings->board
@@ -865,7 +988,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (checkmate0? blindswine 'Black) #t)
+(check-expect (checkmate? (ChessGame blindswine (list rw bkm wkm))) #t)
 
 (define retimate (strings->board
                      (list
@@ -877,28 +1000,16 @@
                           "--------"
                           "--------"
                           "---r---k")))
-(check-expect (checkmate0? retimate 'Black) #t)
+(check-expect (checkmate? (ChessGame retimate (list rw bkm wkm))) #t)
 
 ;;the examples are from wikipedia article "Checkmate Pattern"
 
-
-(: checkmate? : ChessGame -> Boolean)
+(: stalemate? : ChessGame -> Boolean)
 ;;return true if the specified player is in check and cannot get our of it
-(define (checkmate? g)
-  (match g
-    [(ChessGame b hist)
-     (checkmate0? b (whose-turn hist))]))
-(check-expect (checkmate? (ChessGame retimate whitemove1)) #t)
-;; ----------;;;---------------------------
-;; stalemate?
+(define (stalemate? g)
+  (and (not (in-check? g))
+       (empty? (moves-player g))))
 
-(: stalemate0? : Board Player -> Boolean)
-;; stalemate is when the player whose turn it is to move
-;; is not in check but has no legal moves
-(define (stalemate0? b color)
-  (and 
-   (not (in-check0? b (opposite-color color)))
-   (empty? (moves-player0 b color))))
 
 (define teststalemate1 (strings->board
                      (list
@@ -910,7 +1021,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (stalemate0? teststalemate1 'Black) #t)
+(check-expect (stalemate? (ChessGame teststalemate1 (list rw bkm wkm))) #t)
 
 (define teststalemate2 (strings->board
                      (list
@@ -922,7 +1033,7 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (stalemate0? teststalemate2 'Black) #t)
+(check-expect (stalemate? (ChessGame teststalemate2 (list rw bkm wkm))) #t)
 
 (define teststalemate3 (strings->board
                      (list
@@ -934,7 +1045,7 @@
                           "--k-----"
                           "-r------"
                           "K-------")))
-(check-expect (stalemate0? teststalemate3 'Black) #t)
+(check-expect (stalemate? (ChessGame teststalemate3 (list rw bkm wkm))) #t)
 
 (define teststalemate4 (strings->board
                      (list
@@ -946,7 +1057,7 @@
                           "-q------"
                           "P-------"
                           "K-------")))
-(check-expect (stalemate0? teststalemate4 'Black) #t)
+(check-expect (stalemate? (ChessGame teststalemate4 (list rw bkm wkm))) #t)
 
 (define teststalemate5 (strings->board
                      (list
@@ -958,61 +1069,81 @@
                           "--------"
                           "--------"
                           "--------")))
-(check-expect (stalemate0? teststalemate5 'Black) #t)
+(check-expect (stalemate? (ChessGame teststalemate5 (list rw bkm wkm))) #t)
 
-;;the examples are from wikipedia article "Stalemate"
 
-(: stalemate? : ChessGame -> Boolean)
-;; stalemate is when the player whose turn it is to move
-;; is not in check but has no legal moves
-(define (stalemate? g)
-  (match g
-    [(ChessGame b hist)
-     (stalemate0? b (whose-turn hist))]))
-(check-expect (stalemate? (ChessGame teststalemate4 whitemove1)) #t)
-;; ----------;;;---------------------------
+(: cupdate : Loc Square -> (Board -> Board))
+;; a curried verision of board-update
+(define (cupdate loc sq)
+  (λ ([b : Board]) (board-update b loc sq)))
 
-(: apply-move : ChessGame Move -> ChessGame)
-;Make the specified move for the player whose turn it is,
-;modifying the board accordingly. Update the history of moves.
-;Raise an error if the desired move is not legal according to legal-move?.
-(define (apply-move g mv)
-  (if (legal-move? g mv)
-      (match* (g mv)
-        [((ChessGame b hist) (Move src dst moved captured promote-to))
-         (ChessGame
-          (board-update (board-update b dst (Some moved))
-                        src 'None)
-          (append hist (list mv)))])
-      (error "illegal move!")))
-(define testapplymove11 (strings->board
-                     (list
-                          "K-------"
-                          "p-------"
-                          "k-------"
-                          "-----Q--"
-                          "-----b--"
-                          "--------"
-                          "--------"
-                          "--------")))
-(define testapplymove12 (strings->board
-                     (list
-                          "K-------"
-                          "p-------"
-                          "k-------"
-                          "-----b--"
-                          "--------"
-                          "--------"
-                          "--------"
-                          "--------")))
 
-(define move1 (Move (Loc 'F 4) (Loc 'F 5) (Piece 'Bishop 'White)
-                                                  (Some (Piece 'Queen 'Black)) 'None))
-(define move2 (Move (Loc 'F 4) (Loc 'A 8) (Piece 'Bishop 'White)
-                                                  (Some (Piece 'King 'Black)) 'None))
-(check-error (apply-move (ChessGame testapplymove11 '()) move1) "illegal move!")
+(: normal-apply : Board Move -> Board)
+;; hide the implicit changes due to the three special moves
+;; assume it is legal
+(define (normal-apply b mv)
+  (match mv
+        [(Move src dst moved captured promote-to)
+;          (board-update (board-update b dst (Some moved))
+;                        src 'None)
+          ((compose (cupdate dst (Some moved)) (cupdate src 'None)) b)]))
+          
+
+;(: pro-or-pass-apply : Board Move -> Board)
+;;; apply the implicit effects of either promotion or en-passant
+;;; assume it is legal
+;(define (pro-or-pass-apply b mv)
+;  (match mv
+;        [(Move src dst mvd cap pro)
+;         (cond
+;           [(not (symbol=? (get-opt pro 'None) 'None))
+;            ((cupdate dst (Some (Piece (val-of pro) (Piece-color mvd)))) b)]
+;           [(not (symbol=? (get-opt (list-ref b (loc->boaref dst)) 'None)))
+;            ((cupdate (boaref->loc (+ (loc->boaref dst)
+;                                     (* (sgn (- (loc->boaref dst) (loc->boaref src))) 8)))
+;                     'None) b)]
+;;先要看是那个子 是不是passent。 脑子狐           
+;; curried 不需要用在update上 要用在后面的三次叠加上            
+              
+
+;(: apply-move : ChessGame Move -> ChessGame)
+;;; apply legal moves to the game
+;(define (apply-move g mv)
+;  (match* (g mv)
+;    (if (legal-move? g mv)
+;        (match* (g mv)
+;          [((ChessGame b hist) (Move src dst mvd cap pro))
+;           (cond
+;             [(match pro
+;                ['None 
 
 
 
-            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 (test)
