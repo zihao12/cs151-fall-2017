@@ -11,27 +11,27 @@
 ;; ==== ==== ==== ====
 ;; external interface
 
-;(provide PieceType
-;         Player
-;         (struct-out Piece)
-;         Square
-;         Board
-;         (struct-out Move)
-;         PromoteTo
-;         (struct-out ChessGame)
-;          starting-board ; : Board
-;          new-game       ; : ChessGame
-;          board-ref      ; : Board Loc -> Square
-;          board-update   ; : Board Loc Square -> Board
-;          in-check?      ; : ChessGame -> Boolean
-;          legal-move?    ; : ChessGame Move -> Boolean
-;          moves-piece    ; : ChessGame Loc -> (Listof Move)
-;          moves-player   ; : ChessGame -> (Listof Move)
-;          checkmate?     ; : ChessGame -> Boolean
-;          stalemate?     ; : ChessGame -> Boolean
-;          apply-move     ; : ChessGame Move -> ChessGame
-;          strings->board ; : (Listof String) -> Board
-;         )
+(provide PieceType
+         Player
+         (struct-out Piece)
+         Square
+         Board
+         (struct-out Move)
+         PromoteTo
+         (struct-out ChessGame)
+          starting-board ; : Board
+          new-game       ; : ChessGame
+          board-ref      ; : Board Loc -> Square
+          board-update   ; : Board Loc Square -> Board
+          in-check?      ; : ChessGame -> Boolean
+          legal-move?    ; : ChessGame Move -> Boolean
+          moves-piece    ; : ChessGame Loc -> (Listof Move)
+          moves-player   ; : ChessGame -> (Listof Move)
+          checkmate?     ; : ChessGame -> Boolean
+          stalemate?     ; : ChessGame -> Boolean
+          apply-move     ; : ChessGame Move -> ChessGame
+          strings->board ; : (Listof String) -> Board
+         )
 
 ;; ==== ==== ==== ====
 ;; data definitions
@@ -1143,11 +1143,13 @@
 (: apply-move : ChessGame Move -> ChessGame)
 ;; apply the move to chessgame
 (define (apply-move g mv)
-  (match g
-    [(ChessGame b hist)
-     (ChessGame
-      (cas-apply (pas-apply (pro-apply (normal-apply b mv) mv) mv) mv)
-      (append hist (list mv)))]))
+  (if (legal-move? g mv)
+      (match g
+        [(ChessGame b hist)
+         (ChessGame
+          (cas-apply (pas-apply (pro-apply (normal-apply b mv) mv) mv) mv)
+          (append hist (list mv)))])
+      g))
        
 
 
@@ -1175,16 +1177,7 @@
 
 
 
-;(: apply-move : ChessGame Move -> ChessGame)
-;;; apply legal moves to the game
-;(define (apply-move g mv)
-;  (match* (g mv)
-;    (if (legal-move? g mv)
-;        (match* (g mv)
-;          [((ChessGame b hist) (Move src dst mvd cap pro))
-;           (cond
-;             [(match pro
-;                ['None 
+
 
 
 
