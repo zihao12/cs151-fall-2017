@@ -15,28 +15,68 @@
 (define-struct ChessWorld
   ([siz : Integer]
    [gam : ChessGame]
-   [sel : Integer] ; set it as -1 if not highlighted
-   [dst : (Optional Integer)]
-   [checkmate? : Boolean]
-   [stalemate? : Boolean]))
+   [sel : (Optional Integer)] 
+   ;[dst : (Optional Integer)]
+   ;[checkmate? : Boolean]
+   ;[stalemate? : Boolean]
+   ))
 
 (: new-chess-world : Integer -> ChessWorld)
 ;; create a new chessworld given the size of the square
 (define (new-chess-world s)
-  (ChessWorld s (ChessGame starting-board '()) -1 'None #f #f))
+  (ChessWorld s (ChessGame starting-board '()) 'None))
 
 (: world-from-game : ChessGame Integer -> ChessWorld)
 ;; generate the chessworld from existing chess game
 (define (world-from-game g s)
-  (ChessWorld s g -1 'None #f #f))
+  (ChessWorld s g 'None))
 
 
 (: draw-chess-world : ChessWorld -> Image)
 ;; draw out the chessworld
 (define (draw-chess-world w)
   (match w
-    [(ChessWorld s (ChessGame b _) sel _ _ _)
-     (board->image+ s sel b)]))
+    [(ChessWorld s (ChessGame b _) (Some n))
+     (board->image+ s n b)]
+    [(ChessWorld s (ChessGame b _) 'None)
+     (board->image+ s -1 b)]))
+
+(: mouse->boaref : Integer Integer Integer -> (Optional Integer))
+;; turn the location of the mouse into boaref, given the sidelength of a square
+;; return 'None if the mouth is not on board
+(define (mouse->boaref x y s)
+  (cond
+    [(or (> x (* s 8)) (> y (* s 8))) 'None]
+    [else (Some (+ (* (- 7 (quotient y s)) 8) (quotient x s) ))]))
+
+(: handle-click : ChessWorld Integer Integer Mouse-Event -> ChessWorld)
+;; 1st click, highlight the chosen square (if clicked outside the board, do not change the world)
+;; 2nd click, if on the highlighted square, de-highlight it;
+;; 2nd click, if on a valid destination, find out its corresponding move and apply it to ChessGame, and dehighlight the chosen one
+;; 2nd click, if on an invalid destination, do not change anything in the world
+(define (handle-click w x y e)
+  (local {(define hit (mouse->boaref x y (ChessWorld-siz w)))}
+    (match e
+      ["button-down" 
+       (match w
+         [(ChessWorld s g 'None)
+          (match hit
+            ['None w]
+            [(Some n) (ChessWorld s g (Some n))])]
+         [(ChessWorld s g (Some selected))
+          (match hit
+            ['None w]
+            [(Some n)
+             (if (= n selected) (ChessWorld s g 'None)
+                 (match
+                     (filter
+                      (λ ([mv : Move]) (and (loc=? (Move-src mv) (boaref->loc selected))
+                                             (loc=? (Move-dst mv) (boaref->loc (val-of hit)))))
+                      (moves-player g))
+                   ['() w]
+                   [(cons f r) (ChessWorld s (apply-move g f) 'None)]))])])]
+      [_ w])))
+  
 
 
 
@@ -46,11 +86,9 @@
 
 
 
-
-
-;(big-bang (new-chess-game s) : World
-;          [to-draw draw-chess-world]
-;          [on-mouse handle-click]
+(big-bang (new-chess-world 50) : ChessWorld
+         [to-draw draw-chess-world]
+         [on-mouse handle-click])
 ;          [on-key handle-key]
 ;          [stop-when quit?])
           
