@@ -4,8 +4,8 @@
 (require "../include/cs151-core.rkt")
 (require "../include/cs151-image.rkt")
 
-(require "optional.rkt")
-(require "loc.rkt")
+(require "../project1/optional.rkt")
+(require "../project1/loc.rkt")
 (require "chess-logic.rkt")
 ;; ==== ==== ==== ====
 ;; external interface
@@ -13,7 +13,7 @@
 (provide board->image  : Board -> Image)
 
 (define size-of-square 32)
-(define size-of-backgroundsquare 50)
+(define sidelength 50)
  
 ;;'Pawn 'Bishop 'Knight 'Rook 'King 'Queen
 (: square->image : Square -> Image)
@@ -54,40 +54,65 @@
     [((cons _ rest) n)
      (drop (sub1 n) rest)]))
 
-(: row-of-image : Integer Board Image-Color Image-Color -> Image)
+(: row-of-image : Integer Integer Board Image-Color Image-Color -> Image)
 ;; take in board(considered list of squares) and a number n
 ;;produce the image of first n elements in a row
-(define (row-of-image n b c1 c2)
+(define (row-of-image sidelength n b c1 c2)
   (match (take n b)
     ['() empty-image]
     [(cons f r)
      (beside
-      (overlay (square->image f) (square size-of-backgroundsquare "solid" c1))
-      (row-of-image (sub1 n) r c2 c1))]))
+      (overlay (square->image  f) (square sidelength "solid" c1))
+      (row-of-image sidelength (sub1 n) r c2 c1))]))
 
-(: board->image0 : Board Image-Color Image-Color -> Image)
+(: board->image0 : Integer Board Image-Color Image-Color -> Image)
 ;; draw a board with pieces
-(define (board->image0 b c1 c2)
+(define (board->image0 sidelength b c1 c2)
    (match b
     ['() empty-image]
     [_
      (above 
-      (board->image0 (drop 8 b) c1 c2)
+      (board->image0 sidelength (drop 8 b) c1 c2)
       (if (even? (quotient (length b) 8))
-          (row-of-image 8 b c1 c2)
-          (row-of-image 8 b c2 c1)))]))
+          (row-of-image sidelength 8 b c1 c2)
+          (row-of-image sidelength 8 b c2 c1)))]))
 
-(: board->image : Board -> Image)
+(: board->image : Integer Board -> Image)
 ;; draw a board with pieces
-(define (board->image b)
-  (board->image0 b  "brown" "beige"))
+(define (board->image sidelength b)
+  (board->image0 sidelength b  "brown" "beige"))
 
-;(board->image starting-board)
-
-
+;(board->image 50 starting-board)
 
 
 
+(: row-of-image+ : Integer Integer Integer Board Image-Color Image-Color -> Image)
+;; take in the sidelength, number of squares, and an index, and board(considered list of squares) 
+;;produce the image of first n elements in a row
+;; if the index is smaller than n, highlight the corresponding square
+(define (row-of-image+ sidelength n sel b c1 c2)
+  (match (take n b)
+    ['() empty-image]
+    [(cons f r)
+     (beside
+      (overlay (square->image  f)
+               (if (zero? sel) (square sidelength "solid" 'red)
+                       (square sidelength "solid" c1)))
+      (row-of-image+ sidelength (sub1 n) (sub1 sel) r c2 c1))]))
+
+
+(: board->image+ : Integer Integer Board -> Image)
+;; draw a board with pieces
+;; highlight a specific square
+(define (board->image+ sidelength sel b)
+   (match b
+    ['() empty-image]
+    [_
+     (above 
+      (board->image+ sidelength  (- sel 8) (drop 8 b))
+      (if (even? (quotient (length b) 8))
+          (row-of-image+ sidelength 8 sel b "brown" "beige")
+          (row-of-image+ sidelength 8 sel b "beige" "brown")))]))
 
 
 
