@@ -31,6 +31,8 @@
           stalemate?     ; : ChessGame -> Boolean
           apply-move     ; : ChessGame Move -> ChessGame
           strings->board ; : (Listof String) -> Board
+          loc->boaref
+          boaref->loc
          )
 
 ;; ==== ==== ==== ====
@@ -417,9 +419,9 @@
 (define (moves-bishop b loc color)
   (append
    (steps-for-some b loc color 'Bishop 7 leftorup-edge?)
-   (steps-for-some b loc color 'Bishop -7 leftorlow-edge?)
+   (steps-for-some b loc color 'Bishop -7 rightorlow-edge?)
    (steps-for-some b loc color 'Bishop 9 rightorup-edge?)
-   (steps-for-some b loc color 'Bishop -9 rightorlow-edge?)))
+   (steps-for-some b loc color 'Bishop -9 leftorlow-edge?)))
 (define bishoptest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'Bishop 'White))))
 
 ;; ----------;;;---------------------------
@@ -433,9 +435,9 @@
    (steps-for-some g loc color 'Queen 1 right-edge?)
    (steps-for-some g loc color 'Queen -1 left-edge?)
    (steps-for-some g loc color 'Queen 7 leftorup-edge?)
-   (steps-for-some g loc color 'Queen -7 leftorlow-edge?)
+   (steps-for-some g loc color 'Queen -7 rightorlow-edge?)
    (steps-for-some g loc color 'Queen 9 rightorup-edge?)
-   (steps-for-some g loc color 'Queen -9 rightorlow-edge?)))
+   (steps-for-some g loc color 'Queen -9 leftorlow-edge?)))
 (define queentest1 (board-update starting-board (Loc 'D 4) (Some (Piece 'Queen 'White))))
 (define queentest2 (board-update starting-board (Loc 'E 8) (Some (Piece 'Queen 'Black))))
 ;; ----------;;;---------------------------
@@ -1094,9 +1096,11 @@
 ;; assume it is legal
 (define (pro-apply b mv)
   (match mv
-        [(Move src dst mvd cap pro)
-           (if (symbol=? (get-opt pro 'None) 'None) b
-            ((cupdate dst (Some (Piece (val-of pro) (Piece-color mvd)))) b))]))
+    [(Move src dst mvd cap pro)
+     (if (symbol=? (get-opt pro 'None) 'None) b
+         ((cupdate dst (Some (Piece (val-of pro) (Piece-color mvd)))) b))]
+    [_ b]))
+    
            
 (: pas-apply : Board Move -> Board)
 ;; apply the implicit effects of en-passent
@@ -1130,15 +1134,29 @@
   (match mv
     [(Move src dst (Piece 'King color) 'None 'None)
      (cond
-       [(= 2 (- (loc->boaref dst) (loc->boaref src)))
+       [(= 2 (- (loc->boaref dst) (loc->boaref src)))        
         ((compose
-          (cupdate (boaref->loc (add1 (loc->boaref dst))) 'None)
-          (cupdate (boaref->loc (sub1 (loc->boaref dst))) (Some (Piece 'Rook color)))) b)]
+          (cupdate (boaref->loc (+ (loc->boaref src) 3)) 'None)
+          (cupdate (boaref->loc (sub1 (loc->boaref dst))) (Some (Piece 'Rook color)))
+          ) b)]
        [(= -2 (- (loc->boaref dst) (loc->boaref src)))
         ((compose
-          (cupdate (boaref->loc (sub1 (loc->boaref dst))) 'None)
-          (cupdate (boaref->loc (add1 (loc->boaref dst))) (Some (Piece 'Rook color)))) b)]
-       [else b])]))
+          (cupdate (boaref->loc (- (loc->boaref src) 4)) 'None)
+          (cupdate (boaref->loc (add1 (loc->boaref dst))) (Some (Piece 'Rook color)))
+          ) b)]
+       [else b])]
+    [_ b]))
+
+(define cas1 (strings->board
+                     (list
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "--------"
+                          "r---k--r")))
 
 (: apply-move : ChessGame Move -> ChessGame)
 ;; apply the move to chessgame
@@ -1147,11 +1165,41 @@
       (match g
         [(ChessGame b hist)
          (ChessGame
-          (cas-apply (pas-apply (pro-apply (normal-apply b mv) mv) mv) mv)
+          (normal-apply (cas-apply (pas-apply (pro-apply b mv) mv) mv) mv)
+          
           (append hist (list mv)))])
       g))
        
 
+(define error1 (strings->board
+                     (list
+                          "-NBQ----"
+                          "K-P---B-"
+                          "--------"
+                          "-P-q----"
+                          "---p----"
+                          "-----P--"
+                          "-p---k--"
+                          "-nb-----")))
+;; fixed severe mistake at one-step !!!!
+
+(define error2 (strings->board
+                     (list
+                          "--B---KR"
+                          "-K------"
+                          "--------"
+                          "k-PbP--P"
+                          "----p-P-"
+                          "P-R---P-"
+                          "p------p"
+                          "------nr")))
+
+
+
+
+
+
+;(test)
 
 
 
@@ -1207,5 +1255,3 @@
 
 
 
-
-(test)
