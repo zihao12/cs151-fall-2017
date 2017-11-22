@@ -1,0 +1,289 @@
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require "../include/cs151-image.rkt")
+(require "../include/cs151-core.rkt")
+(require "../include/cs151-universe.rkt")
+
+(define-struct World
+  ([play? : Boolean]
+   [num-of-alp-left : Integer]
+   [time-elapsed : Integer]
+   [last-alp-typed : String]))
+
+(define alphabet (list "A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q"
+                       "R" "S" "T" "U" "V" "W" "X" "Y" "Z"
+                       "a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p" "q"
+                       "r" "s" "t" "u" "v" "w" "x" "y" "z"))
+
+(define W1 (World #f 52 0 ""))
+(define W2 (World #t 50 2 "B"))
+(define W3 (World #t 49 2 "C"))
+
+(: draw : World -> Image)
+;; draw the initial world
+(define (draw w)
+  (match w
+    [(World #f  _ _ _) (overlay (text "ARE YOU READY?" 16 "red")(square 256 "solid" "green"))]
+    [(World _ n t k) (overlay
+        (above
+         (text (string-append "Last-typed : " k) 16 "blue")
+         (above
+          (text (string-append "Number of Characters Left : " (number->string n)) 16 "red")
+          (text (string-append "Time-elapsed : " (number->string t)) 16 "red")))
+        (square 256 "solid" "green"))]))
+
+(: advance-by-key : World String -> World)
+;;get input from the keyboard and advance the game
+;; " " to get started
+(define (advance-by-key w k)
+  (match w 
+    [(World #f n t c) (if (string=? k " ") (World #t n t c) w)]
+    [(World _ n t c)
+     (if (= n 0) w
+         (if (string=? k (list-ref alphabet (- 52 n)))
+             (World #t (sub1 n) t k)
+             (World #t 52 t k)))]))
+       
+(check-expect (advance-by-key W2 "C") W3)
+
+(: time : World -> World )
+;; record the elapsed time
+(define (time w)
+  (match w
+    [(World #f _ _ _) w]
+    [(World #t n t k)
+     (if (= n 0) w (World #t n (add1 t) k))]))
+
+(: quit? : World -> Boolean)
+;;quit the game after it finished
+(define (quit? w)
+  (match w
+    [(World _ 0 _ _) #t]
+    [_ #f]))
+
+
+(: run : -> World)
+(define (run) 
+(big-bang (World #f 52 0 "") : World
+          [to-draw draw]
+          [on-key advance-by-key]
+          [on-tick time 1]
+          [stop-when quit?]))
+(test)
+          
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require "../include/cs151-image.rkt")
+(require "../include/cs151-core.rkt")
+(require "../include/cs151-universe.rkt")
+
+
+(: smaller-than-one? : (Listof Integer) -> Boolean)
+(define (smaller-than-one? xs)
+  (match xs
+    ['() #f]
+    [(cons f r)
+     (or (< f 1) (smaller-than-one? r))]))
+(check-expect (smaller-than-one? (list 1 2 3 )) #f)
+(check-expect (smaller-than-one? (list 0 2 3 )) #t)
+
+
+(define-struct World
+  ([list-of-radius : (Listof Integer)]
+   [x : Integer]
+   [y : Integer]))
+
+(define W1 (World (list 1) 128 128))
+
+(: draw : World -> Image)
+;;draw the world
+(define (draw w)
+  (match w
+    [(World l x y)
+     (match l
+       ['()(square 256 "solid" "green")]
+       [(cons f r)
+        (overlay/xy
+         (circle f "outline" "blue")
+         (* -1 (- x f))
+         (* -1 (- y f))
+         (draw (World r x y)))])]))
+
+(: move-or-create : World Integer Integer Mouse-Event -> World)
+;; use mouse to move and add circles
+(define (move-or-create w x y e)
+  (match* (w e)
+    [((World l x0 y0)"button-down" )
+     (World (append l (list 2))x0 y0)]
+    [((World l _ _) "move" )
+     (World l x y)]
+    [(_ _) w]))
+
+(: expand-or-shrink : World String -> World)
+;;expand the radius of all circles by "+"
+;;shrink the radius of all circles by "-"
+(define (expand-or-shrink w k)
+  (match* (w k)
+    [((World l x y)"+") (World (map add1 l) x y)]
+    [((World l x y)"-") (World (map sub1 l) x y)]
+    [(_ _) w]))
+  
+(: radius-too-small? : World -> Boolean)
+;;see if the radius of circles are smaller than one
+;;if so, stop the game.
+(define (radius-too-small? w)
+  (match w
+    [(World l _ _)
+    (smaller-than-one? l)]))
+
+(: run : -> World)
+(define (run) 
+(big-bang (World (list 2)128 128): World
+          [to-draw draw]
+          [on-mouse move-or-create]
+          [on-key expand-or-shrink]
+          [stop-when radius-too-small?]))
+
+(test)
+
+;; grader: the world should shut down when all circles shrink to radius 1.
+;; right now, you are shutting down when only 1 hits less than 1
+;; -2
+
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require "../include/cs151-image.rkt")
+(require "../include/cs151-core.rkt")
+(require "../include/cs151-universe.rkt")
+
+;; This game is called " Harry Potter: True or False"
+;; You are given a set of questions and you should try answering them by typing "t" or "f"
+;; For a question you answer correctly, you will get 2 point and you will move on to the next question
+;; For a question you answer wrongly, you will lose 1 point and you will move on to the next question
+;; You can also choose to skip that question by clicking the mouse, and you will ni get or lose any point for that question
+;;Finally you will see your total score and time spent. Good luck and have fun!
+
+(define-struct World
+  ([No : Integer]
+   [elapsed-time : Integer]
+   [score : Integer]))
+
+
+
+(define q1 "Fred and George were born on April Fool's Day.")
+(define q2 "Remus Lupin's Patronus is a werewolf.")
+(define q3 "Voldemort was 74 years old when he died in the Battle of Hogwarts.")
+(define q4 "The third smell Hermione recognizes in the Amortentia potion is Ron's hair.")
+(define question (list q1 q2 q3 q4))
+(define answer (list "t" "f" "f" "t"))
+(define x (length question))
+
+(: draw : World -> Image)
+;;draw the world that shows the number of questions remained, score, and time spent
+(define (draw w)
+  (match w
+    [(World n t s)
+     (overlay
+      (above (text (list-ref question n) 30 "yellow")             
+             (above (text (string-append "# of questions to go: " (number->string (- x n)))
+                   56 "green")
+             (above
+              (text (string-append "Your score: " (number->string s))
+                   56 "maroon")
+              (text (string-append "Time spent:  " (number->string t))
+                   56 "red"))))
+      (square 1024  "solid" "purple"))]))
+
+(: try : World String -> World)
+;; see if the answer is correct and update the score and number of questions left
+(define (try w k)
+  (match* (w k)
+    [((World n t s) k)
+     ;(if (= (string->number k) (list-ref answer n))
+     (if (string=? k (list-ref answer n))
+         (World (add1 n) t (+ s 2))
+         (World (add1 n) t (sub1 s)))]))
+
+(: skip : World Integer Integer Mouse-Event -> World)
+;; skip when the player clicks the mouse
+(define (skip w x y e)
+  (match w
+    [(World n t s)
+     (match e
+       ["button-down" (World (add1 n) t s)]
+       [_ w])]))
+
+(: time : World -> World)
+;;time the game
+(define (time w)
+  (match w
+    [(World n t s)
+     (if (= n x) w (World n (add1 t) s))]))
+
+(: quit? : World -> Boolean)
+;; see if the game is finished
+(define (quit? w)
+  (match w
+    [(World n t s)
+     (= n x)]))
+
+(: run : -> World)
+(define (run) 
+(big-bang (World 0 0 0) : World
+          [to-draw draw]
+          [on-mouse skip]
+          [on-key try]
+          [on-tick time 1]
+          [stop-when quit?]))
+(test)
+
+
+;; grader: nice work on world 4!
+
+;; === correctness ===
+
+;; World 1 (20 clicks)
+;; displays time and num clicks       / 3 
+;; counts clicks                      / 3
+;; stops at 20                        / 3
+;; (okay if screen displays 19)
+
+;; World 2 (typing test)
+;; displays last char typed           / 3
+;; display num chars to type          / 3
+;; displays time                      / 3
+;; resets on mistake                  / 3
+;; handles keys correctly             / 3
+;; stops on "z"                       / 3
+;; (okay if still displays "y")
+
+;; World 3 (following the mouse)
+;; clicks create circles              / 3
+;; + enlarges circles                 / 3
+;; - shrinks circles                  / 3
+;; circles follow mouse               / 3
+;; stops on all radius 1              1/ 3
+
+;; World 4 (freestyle)
+;; reacts to time                     / 3
+;; reacts to keyboard                 / 3
+;; reacts to mouse                    / 3
+
+;; === style ===
+
+;; code layout                        / 8
+;; identifiers are well named         / 6
+;; program decomposition (helpers)    / 4
+
+;; contracts (type ascriptions)       / 8
+;; well-written purposes              / 6
+;; adequate tests                     / 6
+
+;; clarity (clear logic)              / 6
+
+;; svn used correctly                 4/ 5 ;;grader: hw4 not hw5
+
+;; _total-score_                    97/ 100
+
+;; graded by Wendy Li
+;; Great Job!

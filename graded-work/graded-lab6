@@ -1,0 +1,424 @@
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require "../include/cs151-core.rkt")
+
+(define-struct (Pr A B)
+  ([a : A]
+   [b : B]))
+
+(define-struct (Some A)
+  ([value : A]))
+
+(define-type (Optional A)
+  (U 'None (Some A)))
+
+(define-type (Compare A)
+  (A A -> Boolean))
+
+(define-type (BSTree A)
+  (U 'E (Nd A)))
+
+(define-struct (Nd A)
+  ([root    : A]
+   [count   : Integer]
+   [lesser  : (BSTree A)]
+   [greater : (BSTree A)]))
+
+(define-struct (BST A)
+  ([less-than : (Compare A)]
+   [tree-data : (BSTree A)]))
+  
+(define bstree1 (Nd 20 2
+                    (Nd 16 1
+                        (Nd 12 1 'E 'E)
+                        (Nd 17 3 'E 'E))
+                    (Nd 22 1
+                        (Nd 21 3 'E 'E)
+                        (Nd 29 8 'E 'E))))
+
+(define bstree2 (Nd 20 2
+                    (Nd 16 1 (Nd 12 1 'E 'E) (Nd 17 3 'E
+                                                 (Nd 19 1 'E 'E)))
+                    (Nd 22 1 (Nd 21 3 'E 'E) (Nd 29 8 'E 'E))));;bstree1 add number 19
+(define bstree3 (Nd 20 2
+                    (Nd 16 1 (Nd 12 1 'E 'E) (Nd 17 4 'E 'E))
+                    (Nd 22 1 (Nd 21 3 'E 'E) (Nd 29 8 'E 'E))));;bstree1 add number 17
+
+(define bst1
+  (BST < bstree1))
+
+(: make-empty : All (A) (Compare A) -> (BST A))
+;; produce an empty BST given an ordering function
+(define (make-empty func)
+  (BST func 'E))
+(check-expect (BST-tree-data (make-empty string<?)) 'E)
+
+(: singleton : All (A) (Compare A) A -> (BST A))
+;; produce a singleton BST given an ordering function and one item
+(define (singleton func root)
+  (BST func (Nd root 1 'E 'E)))
+(check-expect (BST-tree-data (singleton < 1)) (Nd 1 1 'E 'E))
+
+(: intrees : All (A) A (Compare A) (BSTree A)-> (BSTree A))
+;; insert item into bstree
+(define (intrees x func tree)
+               (match tree
+                 ['E (Nd x 1 'E 'E)]
+                 [(Nd root c l r)
+                  (cond
+                    [(func x root) (Nd root c (intrees x func l) r)]
+                    [(func root x) (Nd root c l (intrees x func r))]
+                    [else (Nd root (add1 c) l r)])]))
+(check-expect (intrees 19 < bstree1) bstree2)
+(check-expect (intrees 17 < bstree1) bstree3)
+               
+(: insert : All (A) A (BST A) -> (BST A))
+;; insert item into tree
+(define (insert x t)
+  (match t
+    [(BST func tree)
+       (BST func (intrees x func tree))]))       
+(check-expect (BST-tree-data (insert 19 bst1)) bstree2)
+(check-expect (BST-tree-data (insert 17 bst1)) bstree3)
+
+
+(: contains? : All (A) A (BST A) -> Boolean)
+;; test if tree contains item
+(define (contains? x t)
+  (match t
+    [(BST func tree)
+     (local
+       {(: treecontains? : A (BSTree A) -> Boolean)
+        (define (treecontains? x tree)
+          (match tree
+            ['E #f]
+            [(Nd root _ l r)
+             (cond
+               [(func x root) (treecontains? x l)]
+               [(func root x) (treecontains? x r)]
+               [else #t])]))}
+       (treecontains? x tree))]))
+(check-expect (contains? 17 bst1) #t)
+(check-expect (contains? 3 bst1) #f)
+
+
+(: item-count : All (A) A (BST A) -> Integer)
+;; return the number of this item in tree
+(define (item-count x t)
+  (match t
+    [(BST func tree)
+     (local
+       {(: tree-count : A (BSTree A) -> Integer)
+        (define (tree-count x tree)
+          (match tree
+            ['E 0]
+            [(Nd root c l r)
+             (cond
+               [(func x root)(tree-count x l)]
+               [(func root x)(tree-count x r)]
+               [else c])]))}
+       (tree-count x tree))]))         
+(check-expect   (item-count 17 bst1) 3)
+
+(: num-nodes : All (A) (BST A) -> Integer)
+;; count the number of _nodes_ in the tree
+(define (num-nodes t)
+  (match t
+    [(BST func tree)
+     (local
+       {(: tree-nodes : (BSTree A) -> Integer)
+        (define (tree-nodes tree)
+          (match tree
+            ['E 0]
+            [(Nd _ _ l r)
+             (+ 1 (tree-nodes l) (tree-nodes r))]))}
+       (tree-nodes tree))]))             
+(check-expect (num-nodes bst1) 7)
+
+(: num-items : All (A) (BST A) -> Integer)
+;; count the number of _items_ in the tree (>= the number of nodes)
+(define (num-items t)
+  (match t
+    [(BST func tree)
+     (local
+       {(: tree-items : (BSTree A) -> Integer)
+        (define (tree-items tree)
+          (match tree
+            ['E 0]
+            [(Nd _ c l r)
+             (+ c (tree-items l) (tree-items r))]))}
+       (tree-items tree))]))
+(check-expect (num-items bst1) 19)   
+
+(: directions-to : All (A) A (BST A) -> (Listof (U A 'LEFT 'RIGHT)))
+;; return the path to the item and record of left/right turns
+(define (directions-to x t)
+  (match t
+    [(BST func 'E) '()]
+    [(BST func (Nd root c l r))
+     (cond
+       [(func x root) (append
+                       (list root 'LEFT)
+                       (directions-to x (BST func l)))]
+       [(func root x) (append
+                       (list root 'RIGHT)
+                       (directions-to x (BST func r)))]
+       [else (list root)])]))
+
+(check-expect (directions-to 12 bst1) (list 20  'LEFT 16 'LEFT 12))
+(check-expect (directions-to 17 bst1) (list 20  'LEFT 16 'RIGHT 17))
+
+(: from-list : All (A) (Compare A) (Listof A) -> (BST A))
+;; build a BST from the items in the list
+(define (from-list func as)
+  (local
+    {(: list->bstree : (Listof A) -> (BSTree A))
+     (define (list->bstree as)
+       (foldr
+        (λ ([a : A] [atree : (BSTree A)]) (intrees a func atree))
+        'E
+        (reverse as)))}
+    (BST func (list->bstree as))))
+(check-expect (BST-tree-data (from-list < (list 20 22 16 20 29 21 29 29 29 29 29 29 29 17 12 17 17 21 21)))
+     bstree1)                              
+  
+(: inorder : All (A) (BST A) -> (Listof A))
+;; construct the inorder traversal of items in tree
+;; items that appear k times in tree must appear k times in result
+(define (inorder t)
+  (match t
+    [(BST func tree)
+     (local
+       {(: treeinorder : (BSTree A) -> (Listof A))
+        (define (treeinorder tree)
+          (match tree
+            ['E '()]
+            [(Nd root c l r)
+             (append (treeinorder l)
+                     (build-list c
+                                 (λ ([n : Integer]) root))
+                     (treeinorder r))]))}
+       (treeinorder tree))]))           
+(check-expect (inorder bst1) (list 12 16 17 17 17 20 20 21 21 21 22 29 29 29 29 29 29 29 29 ))
+
+(: min-item : All (A) (BSTree A) -> (Optional (Pr A Integer)))
+;; return the minimum item in the tree and its count
+(define (min-item tree)
+  (match tree
+    ['None 'None]
+    [(Nd root c 'E _) (Some(Pr root c))]
+    [(Nd _ _ l _) (min-item l)])) 
+(check-expect (min-item bstree1) (Some (Pr 12 1)))          
+          
+  
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(test)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"--------------- grader's tests -------------------"
+(: grader-sample-int-singleton (BSTree Integer))
+(define grader-sample-int-singleton (Nd 151 1 'E 'E))
+
+(: grader-sample-str-singleton (BSTree String))
+(define grader-sample-str-singleton (Nd "UChicago" 1 'E 'E))
+
+(: grader-sample-tree-A (BSTree Integer))
+(define grader-sample-tree-A (Nd 4 1 (Nd 3 1 'E 'E)
+                                     (Nd 9 1 'E 'E)))
+(: grader-sample-tree-B (BSTree Integer))
+(define grader-sample-tree-B (Nd 4 1 (Nd 3 1 'E 'E)
+                                     (Nd 9 1 'E (Nd 10 1 'E 'E))))
+(: grader-sample-tree-C (BSTree Integer))
+(define grader-sample-tree-C (Nd 4 1 (Nd 3 1 'E 'E)
+                                     (Nd 9 1 (Nd 7 1 'E 'E)
+                                             (Nd 10 1 'E 'E))))
+(: grader-sample-tree-D (BSTree Integer))
+(define grader-sample-tree-D (Nd 4 1 (Nd 3 1 'E 'E)
+                                     (Nd 9 1 (Nd 7 1 (Nd 6 1 'E 'E) 'E)
+                                             (Nd 10 1 'E 'E))))
+(: grader-sample-tree-E (BSTree Integer))
+(define grader-sample-tree-E (Nd 4 1 (Nd 3 1 'E 'E)
+                                     (Nd 9 3 (Nd 7 2 (Nd 6 2 'E 'E) 'E)
+                                             (Nd 10 1 'E 'E))))
+(: grader-sample-tree-F (BSTree Integer))
+(define grader-sample-tree-F (Nd 4 1 (Nd 3 1 'E 'E)
+                                     (Nd 9 4 (Nd 7 2 (Nd 6 2 'E 'E) 'E)
+                                             (Nd 10 1 'E 'E))))
+;; make-empty
+(check-expect (BST-tree-data (make-empty <)) 'E)
+(check-expect (BST-tree-data (make-empty string<?)) 'E)
+
+;; singleton
+(check-expect (BST-tree-data ((inst singleton Integer) < 123)) ((inst Nd Integer) 123 1 'E 'E))
+(check-expect (BST-tree-data (singleton string<? "UChicago")) (Nd "UChicago" 1 'E 'E))
+
+;; insert
+(check-expect (BST-tree-data ((inst insert Integer) 151 (BST < 'E)))
+              grader-sample-int-singleton)
+(check-expect (BST-tree-data ((inst insert Integer) 10 (BST < grader-sample-tree-A)))
+              grader-sample-tree-B)
+(check-expect (BST-tree-data ((inst insert Integer) 7 (BST < grader-sample-tree-B)))
+              grader-sample-tree-C)
+(check-expect (BST-tree-data ((inst insert Integer) 6 (BST < grader-sample-tree-C)))
+              grader-sample-tree-D)
+(check-expect (BST-tree-data ((inst insert Integer) 9 (BST < grader-sample-tree-E)))
+              grader-sample-tree-F)
+
+;; contains?
+(check-expect (contains? 151 (BST < grader-sample-tree-E)) #f)
+(check-expect (contains? 7 (BST < grader-sample-tree-E)) #t)
+(check-expect (contains? 6 (BST < grader-sample-tree-E)) #t)
+(check-expect (contains? 10 (BST < grader-sample-tree-E)) #t)
+(check-expect (contains? 4 (BST < grader-sample-tree-E)) #t)
+(check-expect (contains? 1 (BST < grader-sample-tree-E)) #f)
+(check-expect (contains? "a" (BST string<? grader-sample-str-singleton)) #f)
+(check-expect (contains? "UChicago" (BST string<? grader-sample-str-singleton)) #t)
+
+;; item-count
+(check-expect (item-count 9 (BST < grader-sample-tree-E)) 3)
+(check-expect (item-count 7 (BST < grader-sample-tree-E)) 2)
+(check-expect (item-count 6 (BST < grader-sample-tree-E)) 2)
+(check-expect (item-count 4 (BST < grader-sample-tree-E)) 1)
+(check-expect (item-count 151 (BST < grader-sample-tree-E)) 0)
+
+;; num-nodes
+(check-expect (num-nodes (BST < grader-sample-tree-E)) 6)
+(check-expect (num-nodes (BST < grader-sample-tree-F)) 6)
+(check-expect (num-nodes (BST < grader-sample-tree-A)) 3)
+(check-expect (num-nodes (BST < 'E)) 0)
+(check-expect (num-nodes (BST > (Nd 2 3 'E 'E))) 1)
+
+;; num-items
+(check-expect (num-items (BST < grader-sample-tree-E)) 10)
+(check-expect (num-items (BST < grader-sample-tree-F)) 11)
+(check-expect (num-items (BST < 'E)) 0)
+(check-expect (num-items (BST > (Nd 2 3 'E 'E))) 3)
+
+;; directions-to
+(check-expect (directions-to 1 (BST < grader-sample-tree-E)) '())
+(check-expect (directions-to 4 (BST < grader-sample-tree-E)) (list 4))
+(check-expect (directions-to 3 (BST < grader-sample-tree-E)) (list 4 'LEFT 3))
+(check-expect (directions-to 7 (BST < grader-sample-tree-E)) (list 4 'RIGHT 9 'LEFT 7))
+(check-expect (directions-to 10 (BST < grader-sample-tree-E)) (list 4 'RIGHT 9 'RIGHT 10))
+(check-expect (directions-to 6 (BST < grader-sample-tree-E)) (list 4 'RIGHT 9 'LEFT 7 'LEFT 6))
+
+;; from-list
+(: should-reverse Boolean)
+(define should-reverse
+  (local {(define T1 (BST-tree-data (from-list < (list 1 2))))}
+    (match T1
+      [(Nd 1 1 'E (Nd 2 1 'E 'E)) #f]
+      [(Nd 2 1 (Nd 1 1 'E 'E) 'E) (begin (print ">>from-list: testing with reversed input") #t)]
+      [_ (begin (print ">>from-list: check for error.") #f)])))
+(: grader-maybe-reverse-list-op (-> (Listof Integer) (Listof Integer)))
+(define grader-maybe-reverse-list-op (if should-reverse (inst reverse Integer)
+                           (inst identity (Listof Integer))))
+
+(: grader-test-list-A (Listof Integer))
+(define grader-test-list-A (grader-maybe-reverse-list-op (list 4 3 9)))
+(: grader-test-list-D (Listof Integer))
+(define grader-test-list-D (grader-maybe-reverse-list-op (list 4 3 9 10 7 6)))
+(: grader-test-list-F (Listof Integer))
+(define grader-test-list-F (grader-maybe-reverse-list-op (list 4 3 9 10 7 6 9 7 6 9 9)))
+
+(check-expect (BST-tree-data (from-list < grader-test-list-A)) grader-sample-tree-A)
+(check-expect (BST-tree-data (from-list < grader-test-list-D)) grader-sample-tree-D)
+(check-expect (BST-tree-data (from-list < grader-test-list-F)) grader-sample-tree-F)
+
+(: grader-complex_int_bst (BST Integer))
+(define grader-complex_int_bst (BST < (Nd 1 1 (Nd -1 3 'E 'E) (Nd 3 2 'E 'E))))
+
+(: grader-complex_str_bst (BST String))
+(define grader-complex_str_bst (BST string<? (Nd "d" 1 (Nd "a" 3 'E 'E) (Nd "z" 2 'E 'E))))
+
+(: grader-deep_int_bst (BST Integer))
+(define grader-deep_int_bst (BST < (Nd 1 1 (Nd -1 3 'E (Nd 0 1 'E 'E)) (Nd 3 2 (Nd 2 1 'E 'E) 'E))))
+
+;; inorder
+(check-expect (inorder (BST < 'E)) '())
+(check-expect (inorder grader-complex_int_bst) '(-1 -1 -1 1 3 3))
+(check-expect (inorder grader-complex_str_bst) '("a" "a" "a" "d" "z" "z"))
+(check-expect (inorder grader-deep_int_bst) '(-1 -1 -1 0 1 2 3 3))
+
+;; min-item
+(check-expect (min-item (BST-tree-data grader-complex_int_bst)) (Some (Pr -1 3)))
+;(check-expect (min-item (BST-tree-data (BST < 'E))) 'None)
+(check-expect (min-item (BST-tree-data grader-complex_str_bst)) (Some (Pr "a" 3)))
+(check-expect (min-item (BST-tree-data grader-deep_int_bst)) (Some (Pr -1 3)))
+(test)
+
+;; Lab 6 guideline
+
+;; === correctness ===
+
+;; make-empty       / 3
+;; singleton        / 3
+
+;; insert           / 6
+;; contains?        / 5
+;; item-count       / 5
+
+;; num-nodes        / 4
+;; num-items        / 4
+
+;; directions-to   4 / 5
+;; should return an empty list if the element does not exist.
+;; from-list        / 5
+
+;; inorder          / 5
+;; min-item       4 / 5
+;; should return 'None if the tree is empty.
+
+;; === style ===
+
+;; code layout                        / 4
+;; identifiers are well named         / 4
+;; program decomposition (helpers)    / 4
+
+;; contracts (type ascriptions)       / 4
+;; well-written purposes              / 4
+;; adequate tests                     / 4
+
+;; clarity (clear logic)              / 4
+
+;; svn used correctly                 / 2
+
+;; _total-score_                   78 /80
+
+;; graded by Liwen Zhang
