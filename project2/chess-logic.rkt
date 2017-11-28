@@ -712,7 +712,7 @@
 
 (: empty-neighborhood? : Board Loc Integer -> Boolean)
 ;;see if the ajacent squares are empty
-;;ex: (empty-neighborhood? b loc -1) return whether its right eighbo is empty
+;;ex: (empty-neighborhood? b loc -1) return whether its right neighborhood is empty
 (define (empty-neighborhood? b loc n)
   (match (list-ref b (+ n (loc->boaref loc)))
     ['None #t]
@@ -737,7 +737,7 @@
          (not (ormap
                 (λ ([mv : Move])
                   (or (loc=? (boaref->loc (- (loc->boaref loc) 4)) (Move-src mv))
-                       (loc=? (boaref->loc (- (loc->boaref loc) 4)) (Move-dst mv)))) hist));;see if the rooks(if the loc is indeed an unmoved king)            
+                       (loc=? (boaref->loc (- (loc->boaref loc) 4)) (Move-dst mv)))) hist));;see if the rook is indeed unmoved            
          (if (and (empty-neighborhood? b loc -1)
                   (empty-neighborhood? b loc -2)
                   (empty-neighborhood? b loc -3)
@@ -1092,15 +1092,17 @@
           
 
 (: pro-apply : Board Move -> Board)
-;; apply the implicit effects of promotion 
+;; apply the implicit effects of promotion (add to normal-apply)
 ;; assume it is legal
 (define (pro-apply b mv)
   (match mv
     [(Move src dst mvd cap pro)
-     (if (symbol=? (get-opt pro 'None) 'None) b
-         ((cupdate dst (Some (Piece (val-of pro) (Piece-color mvd)))) b))]
+     (if (symbol=? (get-opt pro 'None) 'None) (normal-apply b mv)
+         ((compose (cupdate dst (Some (Piece (val-of pro) (Piece-color mvd))))
+                  (cupdate src 'None)) b ))]        
     [_ b]))
-    
+
+
            
 (: pas-apply : Board Move -> Board)
 ;; apply the implicit effects of en-passent
@@ -1165,10 +1167,9 @@
       (match g
         [(ChessGame b hist)
          (ChessGame
-          (normal-apply (cas-apply (pas-apply (pro-apply b mv) mv) mv) mv)
-          
-          (append hist (list mv)))])
-      g))
+          (pro-apply (cas-apply (pas-apply b mv) mv) mv)          
+          (append hist (list mv)))]) g))
+      
        
 
 (define error1 (strings->board

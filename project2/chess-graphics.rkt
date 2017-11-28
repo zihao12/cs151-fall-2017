@@ -10,7 +10,10 @@
 ;; ==== ==== ==== ====
 ;; external interface
 
-(provide board->image  : Board -> Image)
+
+(provide board->image ; : Integer Board -> Image 
+         board->image+ ; : Integer Integer Board -> Image
+         )
 
 (define size-of-square 32)
 (define sidelength 50)

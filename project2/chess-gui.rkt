@@ -36,15 +36,23 @@
 (: draw-chess-world : ChessWorld -> Image)
 ;; draw out the chessworld
 (define (draw-chess-world w)
-  (match w
-    [(ChessWorld s (ChessGame b _) (Some n) 'None)
-     (board->image+ s n b)]
-    [(ChessWorld s (ChessGame b _) (Some n) (Some pro))
-     (above (board->image+ s n b)
-            (text "CHOOSE YOUR PROMOTETO TYPE: PRESS q,b,n OR r" 20 'blue))]
-    [(ChessWorld s (ChessGame b _) 'None _)
-     (board->image+ s -1 b)]))
-  ;;geshiyouwenti  
+  (above
+   (match w
+     [(ChessWorld s (ChessGame b _) (Some n) 'None)
+      (above (board->image+ s n b)
+             (text "" 30 'blue))]           
+     [(ChessWorld s (ChessGame b _) (Some n) (Some pro))
+      (above (board->image+ s n b)
+             (text "PROMOTION:type q,b,n OR r" 25 'blue))]
+     [(ChessWorld s (ChessGame b _) 'None _)
+      (above (board->image+ s -1 b)
+             (text "" 30 'blue))])
+   (cond
+     [(checkmate? (ChessWorld-gam w)) (text "CHECKMATE!" 30 'blue)]
+     [(stalemate? (ChessWorld-gam w)) (text "STALEMATE!" 30 'blue)]
+     [(in-check? (ChessWorld-gam w)) (text "INCHECK!" 30 'blue)];; short circuit should garuantee that messages won't be in conflict
+     [else (text "Have Fun!" 30 'blue)])))
+
     
 
 (: mouse->boaref : Integer Integer Integer -> (Optional Integer))
@@ -97,25 +105,33 @@
        [_ w])]
     [_ w]))
                     
-       
+
+(: run : Integer -> ChessWorld)
+;; run the chess!
+(define (run s)
+  (big-bang (new-chess-world s) : ChessWorld
+            [to-draw draw-chess-world]
+            [on-mouse handle-click]
+            [on-key handle-key]))
 
 
 
+(: play-new : Integer -> ChessWorld)
+;; start a new game
+(define (play-new s)
+  (run s))
 
+(: play-from : ChessGame Integer -> ChessWorld)
+;; play from specified chessgame
+(define (play-from g s)
+  (big-bang (ChessWorld s g 'None 'None) : ChessWorld 
+            [to-draw draw-chess-world]
+            [on-mouse handle-click]
+            [on-key handle-key]))
+        
 
-
-
-
-
-(big-bang (new-chess-world 50) : ChessWorld
-         [to-draw draw-chess-world]
-         [on-mouse handle-click]
-          [on-key handle-key])
-;          [stop-when quit?])
-          
-
-
-
+;; other features to implement: checkmate and stalemate?
+;; time individual player
 
 
 
