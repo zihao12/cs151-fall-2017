@@ -32,25 +32,32 @@
 (define (world-from-game g s)
   (ChessWorld s g 'None 'None))
 
+(: show-player : (Listof Move) -> Image)
+;; show whose turn it is to play
+(define (show-player hist)
+  (match (whose-turn hist)
+    ['White (text "White" 30 'gray)]
+    ['Black (text "Black" 30 'black)]))
+
 
 (: draw-chess-world : ChessWorld -> Image)
 ;; draw out the chessworld
 (define (draw-chess-world w)
   (above
    (match w
-     [(ChessWorld s (ChessGame b _) (Some n) 'None)
+     [(ChessWorld s (ChessGame b hist) (Some n) 'None)
       (above (board->image+ s n b)
-             (text "" 30 'blue))]           
+             (show-player hist))]           
      [(ChessWorld s (ChessGame b _) (Some n) (Some pro))
       (above (board->image+ s n b)
              (text "PROMOTION:type q,b,n OR r" 25 'blue))]
-     [(ChessWorld s (ChessGame b _) 'None _)
+     [(ChessWorld s (ChessGame b hist) 'None _)
       (above (board->image+ s -1 b)
-             (text "" 30 'blue))])
+             (show-player hist))])
    (cond
-     [(checkmate? (ChessWorld-gam w)) (text "CHECKMATE!" 30 'blue)]
-     [(stalemate? (ChessWorld-gam w)) (text "STALEMATE!" 30 'blue)]
-     [(in-check? (ChessWorld-gam w)) (text "INCHECK!" 30 'blue)];; short circuit should garuantee that messages won't be in conflict
+     [(checkmate? (ChessWorld-gam w)) (text "CHECKMATE!" 30 'yellow)]
+     [(stalemate? (ChessWorld-gam w)) (text "STALEMATE!" 30 'green)]
+     [(in-check? (ChessWorld-gam w)) (text "IN CHECK!" 30 'red)];; short circuit should garuantee that messages won't be in conflict
      [else (text "Have Fun!" 30 'blue)])))
 
     

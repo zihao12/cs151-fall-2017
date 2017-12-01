@@ -33,6 +33,7 @@
           strings->board ; : (Listof String) -> Board
           loc->boaref
           boaref->loc
+          whose-turn
          )
 
 ;; ==== ==== ==== ====
