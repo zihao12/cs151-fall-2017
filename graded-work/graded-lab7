@@ -1,0 +1,179 @@
+#lang typed/racket
+(require typed/test-engine/racket-tests)
+(require "../include/cs151-image.rkt")
+(require "../include/cs151-core.rkt")
+(require "../include/cs151-universe.rkt")
+
+(define-struct Loc
+  ([ x : Integer]
+   [ y : Integer]))
+
+(define-struct World
+  ([ncol : Integer]
+   [nrow : Integer]
+   [size : Byte]
+   [circles : (Listof Boolean)]
+   [position : Loc]
+   [quit? : Boolean]))
+
+;; ========= ========= =========
+;; draw
+(: take : All(A) Integer (Listof A) -> (Listof A))
+;; take the first n elements of a given list
+(define (take n xs)
+  (match* (xs n)
+    [('() _) '()]
+    [(_ 0) '()]
+    [((cons first rest) n)
+     (append (list first) (take (sub1 n) rest))]))
+
+(: drop : All(A) Integer (Listof A) -> (Listof A))
+;; drop the first n elements of a given list
+(define (drop n xs)
+  (match* (xs n)
+    [('() _) '()]
+    [(_ 0) xs]
+    [((cons _ rest) n)
+     (drop (sub1 n) rest)]))
+
+(: row-of-image :  (Listof Boolean) Integer -> Image)
+;; input a list of booleans that record the positions of circles and size of the square 
+;; produce the image 
+(define (row-of-image cs s)
+  (match cs
+    ['() empty-image]
+    [(cons first rest)
+     (beside 
+      (if first
+;          (place-image (circle (/ s 3) "solid" "gray")
+;                       (/ s 2) (/ s 2)
+;                       (square s "outline" "black"))
+          (overlay (circle (quotient s 3) "solid" "gray")
+                       (square s "outline" "black"))
+          (square s "outline" "black"))
+      (row-of-image rest s))]))
+
+(: draw-board : Integer (Listof Boolean) Integer -> Image)
+;; draw the board with optional circles on some box
+(define (draw-board n cs s)
+  (match cs
+    ['() empty-image]
+    [ _
+      (above
+       (row-of-image (take n cs) s)
+       (draw-board n (drop n cs) s)
+       )]))
+
+(: draw : World -> Image)
+;; draw the world
+(define (draw w)
+  (match w
+    [(World n m s cs loc q)
+     (above
+      (if (= (length cs) (* n m))
+          (draw-board n cs s)
+          (error "circles mismatch the board"))
+      (match loc
+        [(Loc x y)
+         (above
+          (beside (text (number->string x) (quotient s 2) "black")
+                           (beside (text "," (quotient s 2) "black") (text (number->string y) (quotient s 2) "black")))
+          (if (or (> x (* s n)) (> y (* s m)))
+              (text "Outside The Grids" (quotient s 2) "black")
+              (beside (text (number->string  (quotient x s)) (quotient s 2) "black")
+                      (beside (text ","  (quotient s 2) "black")
+                              (text (number->string (quotient y s)) (quotient s 2) "black")))))]))]))      
+(check-error (draw (World 2 3 30 '(#f #t #f #t #t #t #t) (Loc 80 80) #f)) "circles mismatch the board")
+
+
+;; ========= ========= =========
+
+(: circle-update : (Listof Boolean) Integer -> (Listof Boolean))
+;; reverse the (n+1)th item in the list
+(define (circle-update cs n)
+  (match cs
+    ['() '()]
+    [(cons f r)
+     (if (= n 0) (cons (not f) r)
+         (cons f (circle-update r (sub1 n))))]))
+(check-expect   (circle-update '(#t #t #f #f #t #f)3)  '(#t #t #f #t #t #f))
+      
+(: mouse : World Integer Integer Mouse-Event -> World)
+;; when mouse is on a certain square, "button-down" generates or ungenerates a circle
+;; when the all the squares are filled in, one click outside the grids will quit the game
+(define (mouse W x y e)
+  (match W
+    [(World n m s cs loc q)
+     (match e
+       ;["enter" (World n m s cs (Loc x y) q)]
+       ["button-down"
+        (if (and (< x (* s n)) (< y (* s m)))
+            (World n m s
+                   (circle-update cs (+ (* (quotient y s) n) (quotient x s)))
+                   loc q)
+            (if (andmap (inst identity Boolean) cs) (World n m s cs loc #t) W))]
+       ["move"
+        (World n m s cs (Loc x y) q)]
+       [_ W])]))
+                 
+;; ========= ========= =========
+(: clear : World String -> World)
+;; clear all the circles when "c" is pressed
+(define (clear W s)
+  (match* (W s)
+    [((World n m s cs loc q) "c")
+     (World n m s (map (λ ([b : Boolean]) #f) cs) loc q)]
+    [(_ _) W]))
+            
+;; ========= ========= =========
+(: quit? :  World -> Boolean)
+;;decide if we quit the game
+(define (quit? W)
+  (World-quit? W))
+
+(: run : Integer Integer Byte -> World)
+;; run the world
+(define (run n m s)
+  (big-bang (World n m s
+                   (build-list (* m n) (λ ([n : Integer]) #f)) (Loc 0 0) #f): World                 
+            [to-draw draw]
+            [on-mouse mouse]
+            [on-key clear]
+            [stop-when quit?]))
+
+(test)
+;; Lab 7 guideline
+
+;; === correctness ===
+
+;; World data structure is well designed 5 / 5
+
+;; grid row*col dimensions are correct 5/ 5
+ 
+;; cell dimensions are correct 5/ 5
+
+;; pixel coordinates are correct and correctly displayed 5 / 5
+
+;; grid coordinates are correct and correctly displayed 5 / 5
+
+;; current cell is highlighted when appropriate  5/ 5
+
+;; cells are correctly marked with clicks  5/ 5
+
+;; cells are correctly unmarked with clicks  5/ 5
+
+;; program terminates when all cells marked and mouse off grid 5 / 5
+
+;; === style ===
+
+;; code layout                       6 / 6
+;; identifiers are well named        6 / 6
+;; program decomposition (helpers)   6 / 6
+;; adequate tests                    4 / 6
+
+;; clarity (clear logic)             4 / 4
+;; svn used correctly                2 / 2
+
+;; _total-score_                     73 /75
+
+;; graded by hli5
